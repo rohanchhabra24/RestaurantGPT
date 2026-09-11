@@ -55,5 +55,12 @@
     "expected_route": null,
     "expect_grounded": true,
     "note": "Nothing in the operational data or policy docs answers this — a pass means the system says so instead of inventing an answer."
+  },
+  {
+    "id": "diagnostic-zone3-spike",
+    "question": "Why did delivery times spike in Zone 3?",
+    "expected_route": "DIAGNOSTIC",
+    "expect_grounded": true,
+    "note": "Multi-hop: this is the exact example question from the original problem statement. A pass means the router picked DIAGNOSTIC (not SQL) and the multi-agent investigator's root-cause narrative still cites real orders/policy sections rather than just asserting a cause."
   }
 ]

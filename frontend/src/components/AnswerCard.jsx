@@ -27,6 +27,11 @@ const ROUTE_BADGES = {
   SQL: [{ icon: "db", label: "text_to_sql_agent" }],
   RETRIEVAL: [{ icon: "file", label: "policy_retrieval_agent" }],
   HYBRID: [{ icon: "db", label: "text_to_sql_agent" }, { icon: "file", label: "policy_retrieval_agent" }],
+  DIAGNOSTIC: [
+    { icon: "clock", label: "trend_agent" },
+    { icon: "search", label: "correlation_agent" },
+    { icon: "file", label: "policy_agent" },
+  ],
   CLARIFY: [],
 };
 
@@ -69,6 +74,26 @@ export default function AnswerCard({ message, onCiteClick }) {
       >
         {renderAnswerBody(message.content, message.citations, onCiteClick)}
       </motion.p>
+
+      {message.investigation_steps?.length > 0 && (
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.3 } } }}
+          style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}
+        >
+          {message.investigation_steps.map((step, i) => (
+            <motion.div
+              key={i}
+              variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
+              className="dim mono"
+              style={{ display: "flex", gap: 8 }}
+            >
+              <span style={{ color: "var(--color-accent)" }}>{i + 1}.</span>{step}
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
 
       {message.data_table && message.data_table.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} style={{ overflowX: "auto" }}>

@@ -20,6 +20,7 @@ export default function NavBar() {
 
       <NavLink to="/" end>Chat</NavLink>
       <NavLink to="/sources">Data Sources</NavLink>
+      <NavLink to="/diagnoses">Diagnoses</NavLink>
       <NavLink to="/traces">Traces</NavLink>
       <NavLink to="/eval">Trust &amp; Eval</NavLink>
 

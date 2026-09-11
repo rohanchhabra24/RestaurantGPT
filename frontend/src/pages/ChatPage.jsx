@@ -6,7 +6,7 @@ import SourceDrawer from "../components/SourceDrawer.jsx";
 import { api } from "../api.js";
 
 const EXAMPLE_PROMPTS = [
-  { icon: "db", kicker: "Data query", title: "Why did delivery times spike in Koramangala last week?", body: "Correlates delivery timestamps with weather and staffing signals." },
+  { icon: "clock", kicker: "Diagnostic", title: "Why did delivery times spike in Zone 3?", body: "Multi-hop: quantifies the spike, finds what correlates with it, then checks policy." },
   { icon: "file", kicker: "Policy lookup", title: "Which cancelled orders qualify for SLA compensation?", body: "Cites the exact SLA clause behind every eligibility call." },
   { icon: "route", kicker: "Compound", title: "Which of yesterday's cancellations in Zone 3 are compensation-eligible?", body: "Joins order data with policy text in a single answer." },
   { icon: "clock", kicker: "Trend", title: "What was our average delivery time last week?", body: "A pure data question — routed straight to the SQL engine." },

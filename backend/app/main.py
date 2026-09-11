@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import close_pool, get_pool
-from app.routers import compensation, conversations, eval, ingest, traces
+from app.routers import compensation, conversations, diagnostics, eval, ingest, traces
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.include_router(ingest.router)
 app.include_router(traces.router)
 app.include_router(eval.router)
 app.include_router(compensation.router)
+app.include_router(diagnostics.router)
 
 
 @app.get("/api/health")

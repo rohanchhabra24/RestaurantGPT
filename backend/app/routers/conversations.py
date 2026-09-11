@@ -84,8 +84,8 @@ async def post_message(conversation_id: str, body: MessageIn):
             """insert into query_traces
                (message_id, restaurant_id, question, route_taken, generated_sql,
                 sql_result_row_count, retrieved_chunk_ids, claimed_citations,
-                grounding_verdict, citation_coverage, latency_ms_by_stage)
-               values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                grounding_verdict, citation_coverage, latency_ms_by_stage, investigation_steps)
+               values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                returning id""",
             msg_row["id"],
             uuid.UUID(settings.demo_restaurant_id),
@@ -98,6 +98,7 @@ async def post_message(conversation_id: str, body: MessageIn):
             result.grounding_verdict,
             result.citation_coverage,
             json.dumps(result.latency_ms_by_stage),
+            json.dumps(result.investigation_steps),
         )
 
     return MessageOut(
@@ -112,4 +113,5 @@ async def post_message(conversation_id: str, body: MessageIn):
         latency_ms_by_stage=result.latency_ms_by_stage,
         trace_id=str(trace_row["id"]),
         data_table=jsonable_encoder(result.sql_rows),
+        investigation_steps=result.investigation_steps,
     )

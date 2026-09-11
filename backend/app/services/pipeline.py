@@ -10,7 +10,7 @@ an unverified claim.
 
 import time
 
-from app.services import grounding, intent_router, retrieval_engine, sql_engine, synthesis
+from app.services import grounding, intent_router, multi_agent_investigator, retrieval_engine, sql_engine, synthesis
 
 
 class PipelineResult:
@@ -25,6 +25,7 @@ class PipelineResult:
         self.citation_coverage: float = 0.0
         self.latency_ms_by_stage: dict[str, int] = {}
         self.regenerated: bool = False
+        self.investigation_steps: list[str] = []
 
 
 def _timed(stage: str, start: float, result: PipelineResult) -> None:
@@ -49,6 +50,8 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
         result.citation_coverage = 1.0
         return result
 
+    investigation_steps_text = None
+
     if result.route_taken in ("SQL", "HYBRID"):
         t1 = time.perf_counter()
         try:
@@ -65,8 +68,17 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
         result.chunks = await retrieval_engine.hybrid_search(question, restaurant_id)
         _timed("retrieval", t2, result)
 
+    if result.route_taken == "DIAGNOSTIC":
+        t2b = time.perf_counter()
+        investigation = await multi_agent_investigator.investigate(question, restaurant_id, slots)
+        result.sql_rows = investigation.order_evidence
+        result.chunks = investigation.chunks
+        result.investigation_steps = [f"[{s.agent}] {s.description}" for s in investigation.steps]
+        investigation_steps_text = investigation.steps_summary_text
+        _timed("investigation", t2b, result)
+
     t3 = time.perf_counter()
-    raw_answer = await synthesis.synthesize(question, result.sql_rows, result.chunks)
+    raw_answer = await synthesis.synthesize(question, result.sql_rows, result.chunks, investigation_steps_text)
     _timed("synthesis", t3, result)
 
     t4 = time.perf_counter()
@@ -81,7 +93,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
             "provided data. Answer again using ONLY the order IDs and policy chunk "
             "ids actually present below, or say the data is insufficient.)"
         )
-        raw_answer = await synthesis.synthesize(corrective_question, result.sql_rows, result.chunks)
+        raw_answer = await synthesis.synthesize(corrective_question, result.sql_rows, result.chunks, investigation_steps_text)
         citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
         result.regenerated = True
 

@@ -2,7 +2,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-Route = Literal["SQL", "RETRIEVAL", "HYBRID", "CLARIFY"]
+Route = Literal["SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY"]
 GroundingVerdict = Literal["grounded", "ungrounded", "partial", "no_claims"]
 
 
@@ -30,6 +30,7 @@ class MessageOut(BaseModel):
     latency_ms_by_stage: dict[str, int] = {}
     trace_id: str | None = None
     data_table: list[dict] = []
+    investigation_steps: list[str] = []
 
 
 class ConversationOut(BaseModel):

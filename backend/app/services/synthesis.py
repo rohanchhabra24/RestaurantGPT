@@ -43,16 +43,21 @@ def _format_chunks(chunks: list[dict]) -> str:
     return "\n---\n".join(lines)
 
 
-async def synthesize(question: str, sql_rows: list[dict], chunks: list[dict]) -> str:
+async def synthesize(question: str, sql_rows: list[dict], chunks: list[dict], investigation_steps: str | None = None) -> str:
+    investigation_block = (
+        f"\nMulti-step investigation already performed (use these findings, don't repeat the queries):\n{investigation_steps}\n"
+        if investigation_steps else ""
+    )
     prompt = f"""Question: {question}
-
-Order data (from SQL):
+{investigation_block}
+Order data (evidence rows, from SQL):
 {_format_sql_rows(sql_rows)}
 
 Policy text (from retrieval):
 {_format_chunks(chunks)}
 
-Answer the question now, citing every claim."""
+Answer the question now, citing every claim. If investigation steps are given above,
+your answer should explain the root cause using those findings, not just restate the numbers."""
     return await complete(settings.synthesis_model, SYSTEM, prompt, max_tokens=800)
 
 
