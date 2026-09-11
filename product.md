@@ -97,7 +97,7 @@ All tables carry a `restaurant_id` (tenant key) with a row-level security policy
 **Structured operational schema (Postgres):**
 
 ```sql
-restaurants(id, name, aggregator_platform, timezone, created_at)
+restaurants(id, name, aggregator_platform, timezone, shares_anonymized_data, created_at)
 
 orders(
   id, restaurant_id, aggregator_order_id, placed_at, zone,
@@ -127,6 +127,18 @@ policy_chunks(
   section_label, embedding_id       -- FK reference into Qdrant point ID
 )
 
+compensation_claims(
+  id, restaurant_id, order_id, policy_chunk_id, computed_amount,
+  status,             -- 'drafted' | 'submitted' | 'resolved'
+  query_trace_id, created_at, resolved_at
+)
+
+policy_impact_reports(
+  id, restaurant_id, old_policy_document_id, new_policy_document_id,
+  window_start, window_end, orders_affected_count, financial_delta,
+  created_at
+)
+
 conversations(id, restaurant_id, user_id, started_at)
 
 messages(id, conversation_id, role, content, created_at)
@@ -136,6 +148,8 @@ query_traces(
   retrieved_chunk_ids, grounding_verdict, latency_ms_by_stage, created_at
 )
 ```
+
+`compensation_claims` and `policy_impact_reports` back the two capabilities that reuse the core engine's eligibility logic rather than adding new AI infrastructure: a scheduled sweep drafts a `compensation_claims` row whenever a cancelled/delayed order matches a compensation clause (each row carries its `query_trace_id` for auditability), and the same eligibility logic re-run against an old vs. new policy version produces a `policy_impact_reports` row — a quantified diff ("40% fewer delays now qualify, ~₹18,000/month impact") the moment a new SLA document is ingested. A nightly aggregation job also maintains a cross-tenant materialized view (never queried through the tenant-scoped path) over cohort dimensions — `cuisine_type`, `city_zone`, `order_volume_bucket` — sourced only from restaurants with `shares_anonymized_data = true`, powering percentile benchmarking ("your delivery time is in the 30th percentile for your cohort") without weakening row-level tenant isolation elsewhere.
 
 **Vector store (Qdrant):** one collection per document type (`policy_chunks`, `review_chunks`), payload includes `restaurant_id`, `effective_date`, `section_label` for metadata filtering — filtering happens *before* the ANN search, not after, so tenant isolation and date-validity are enforced at the retrieval layer itself.
 
@@ -162,7 +176,7 @@ POST   /v1/ingest/documents                 upload + trigger policy doc ingestio
 Walking a compound query end to end: *"Which of yesterday's cancelled orders in Zone 3 are eligible for compensation under our current SLA?"*
 
 1. **Ingress & auth** — API receives the message, resolves `restaurant_id` from the JWT, creates a `messages` row.
-2. **Intent routing** — a cascaded small model (see §2.5) classifies the query. This one is `HYBRID`: it needs a data lookup (cancelled orders, Zone 3, yesterday) *and* a policy interpretation (compensation eligibility clause).
+2. **Intent routing** — a cascaded small model (see §2.5) classifies the query. This one is `HYBRID`: it needs a data lookup (cancelled orders, Zone 3, yesterday) *and* a policy interpretation (compensation eligibility clause). A fifth class, `BENCHMARK`, is added in Phase 4 once cross-tenant cohort data exists — it routes to the aggregated materialized view described in §2.2 instead of the tenant's own tables.
 3. **Slot extraction** — the router also extracts structured filters: `date_range=yesterday`, `zone=Zone 3`, `status=cancelled`. These are passed as typed parameters, not free text, into the SQL generation step — this reduces the SQL model's job to "join and format," which is far less error-prone than free-form NL-to-SQL.
 4. **Text-to-SQL generation** — schema-aware prompt (only the `orders`/`deliveries` table schemas relevant to the slots are injected, not the full schema) generates a parameterized, read-only query.
 5. **SQL validation** — before execution: AST-parsed to confirm `SELECT`-only, mandatory `WHERE restaurant_id = :tenant_id` injected/verified, row-limit cap enforced, no sub-queries touching unrelated tables. Reject and re-prompt with the validator's error if it fails.
@@ -221,12 +235,13 @@ Ingestion (structured ETL + document chunk/embed) is decoupled from the synchron
 - CI gate: block merges that regress the eval score
 - Prompt-injection classifier on ingestion path
 - Full query trace persistence + a simple trace-inspection view
-- **Exit criterion**: eval harness runs in CI and reports a faithfulness score; a deliberately adversarial or ambiguous test query correctly triggers an abstention rather than a hallucinated answer.
+- **Compensation Recovery Autopilot** — a nightly job re-invokes the Phase 1 SQL + retrieval + grounding pipeline against `orders WHERE is_cancelled OR delivery_time_seconds > sla_threshold`, drafting `compensation_claims` rows with a cited policy clause and computed amount rather than waiting for the operator to ask. This flips the product from pull (answers questions) to push (finds money), and — because every claim carries its `query_trace_id` back to a verified answer — opens a defensible performance-based pricing model (a cut of recovered compensation) that a competitor without the grounding layer can't credibly offer.
+- **Policy Change Impact Simulator** — reuses the same eligibility logic: on ingestion of a new `policy_documents` version, a job re-runs it against 30/60/90 days of order history under both the old and new policy and diffs the outcome into a `policy_impact_reports` row (e.g. "40% fewer delays would now qualify — ~₹18,000/month"). Effectively free on top of the Autopilot's logic, and a strong demo/upsell moment since the financial impact is immediate and concrete.
+- **Exit criterion**: eval harness runs in CI and reports a faithfulness score; a deliberately adversarial or ambiguous test query correctly triggers an abstention rather than a hallucinated answer; a seeded cancelled order correctly produces a drafted, cited compensation claim.
 
 ### Phase 3 — Diagnostic Intelligence (stretch)
 - Multi-agent orchestration for multi-hop diagnostic questions (e.g., delivery-time-spike root-causing: order data → weather/staffing signals → policy exceptions, chained rather than single-shot)
-- Proactive anomaly detection agent (background job surfaces "delivery time in Zone 3 up 40% w/w" without being asked)
-- Compensation auto-flagging feature (cross-reference cancelled/delayed orders against SLA policy proactively)
+- **Anomaly-to-Root-Cause Investigator** — a scheduled worker computes windowed aggregates per `(restaurant_id, zone, metric)` and runs simple change-point detection; a detected deviation enqueues the multi-agent investigator above to chain through zone/staffing/weather/policy signals and writes a fully-cited `diagnosis_cards` row *before* the operator asks. This is what separates the feature from commodity threshold alerting — the citation/grounding infrastructure from Phase 2 is what makes an unprompted, autonomous diagnosis trustworthy enough to push.
 
 ### Phase 4 — Scale & Optimize
 - Semantic response caching
@@ -234,6 +249,7 @@ Ingestion (structured ETL + document chunk/embed) is decoupled from the synchron
 - Multi-tenant load testing, read-replica scaling for the SQL engine
 - Observability dashboard over `query_traces` (latency breakdown, groundedness trend, route distribution)
 - Service split (router / retrieval / synthesis) behind internal gRPC if independent scaling is needed
+- **Cross-Restaurant Benchmark Intelligence** — once tenant density exists, the nightly cross-tenant materialized view (§2.2) powers a `BENCHMARK` intent class so an operator can see cohort percentiles ("30th percentile on delivery time for your cuisine/zone"). This is a genuine data-network-effect moat — it compounds with every new restaurant onboarded — and opens a second revenue surface: anonymized aggregate insight sold back to the aggregator platforms themselves. Sequenced last deliberately: it is worthless without real multi-tenant density, so building it before Phase 1–3 land would be premature.
 
 ---
 
@@ -243,3 +259,4 @@ Ingestion (structured ETL + document chunk/embed) is decoupled from the synchron
 - **Grounding + eval as Phase 2, not a stretch goal**: the product's entire pitch is "zero-hallucination." Shipping the core loop without provable groundedness ships an unverified claim, not a differentiated product.
 - **Multi-agent orchestration deferred to Phase 3**: genuinely needed for multi-hop diagnostic questions, but the MVP's compound (not multi-hop) questions are answerable by the router + dual engine alone — building orchestration before the spine works is premature complexity.
 - **Tenant isolation at the data layer, not just the app layer**: given answers can influence real compensation claims and touch customer PII, isolation needs to hold even under an application bug or injection attempt, not only under correct application code.
+- **Proactive capabilities are scheduled re-invocations of the same engine, not new AI stacks**: the Compensation Recovery Autopilot and Policy Change Impact Simulator both reuse the Phase 1–2 SQL/retrieval/grounding pipeline on a timer rather than a chat trigger, and the Benchmark materialized view deliberately never touches the tenant-scoped query path. The architecture was chosen so the highest-leverage, most defensible features fall out of the schema and pipeline already being built for the core loop, instead of requiring a second system.
