@@ -11,6 +11,7 @@ import uuid
 from datetime import date
 
 from app.db import get_pool
+from app.services import injection_guard
 from app.services.embeddings import embed_batch
 
 CHUNK_SIZE = 800
@@ -69,35 +70,47 @@ async def ingest_policy_document(
 ) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
+        next_version = await conn.fetchval(
+            "select coalesce(max(version), 0) + 1 from policy_documents where restaurant_id = $1 and doc_type = $2",
+            uuid.UUID(restaurant_id),
+            doc_type,
+        )
         doc_row = await conn.fetchrow(
-            """insert into policy_documents (restaurant_id, source_name, doc_type, effective_date, expiry_date)
-               values ($1,$2,$3,$4,$5) returning id""",
+            """insert into policy_documents (restaurant_id, source_name, doc_type, effective_date, expiry_date, version)
+               values ($1,$2,$3,$4,$5,$6) returning id""",
             uuid.UUID(restaurant_id),
             source_name,
             doc_type,
             effective_date,
             expiry_date,
+            next_version,
         )
         doc_id = doc_row["id"]
 
         chunks = chunk_text(text)
         vectors = embed_batch(chunks)
 
+        flagged_count = 0
         for idx, (chunk, vec) in enumerate(zip(chunks, vectors)):
             vec_literal = "[" + ",".join(str(x) for x in vec) + "]"
+            flagged, flag_reason = await injection_guard.check_chunk(chunk)
+            flagged_count += int(flagged)
             await conn.execute(
                 """insert into policy_chunks
-                   (policy_document_id, restaurant_id, chunk_text, chunk_index, section_label, embedding)
-                   values ($1,$2,$3,$4,$5,$6::vector)""",
+                   (policy_document_id, restaurant_id, chunk_text, chunk_index, section_label,
+                    embedding, flagged, flag_reason)
+                   values ($1,$2,$3,$4,$5,$6::vector,$7,$8)""",
                 doc_id,
                 uuid.UUID(restaurant_id),
                 chunk,
                 idx,
                 f"{source_name} §{idx + 1}",
                 vec_literal,
+                flagged,
+                flag_reason,
             )
 
-    return {"document_id": str(doc_id), "chunks_indexed": len(chunks)}
+    return {"document_id": str(doc_id), "version": next_version, "chunks_indexed": len(chunks), "chunks_flagged": flagged_count}
 
 
 def extract_pdf_text(raw_bytes: bytes) -> str:

@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [drawerCitation, setDrawerCitation] = useState(null);
   const [compensation, setCompensation] = useState(null);
   const [compBusy, setCompBusy] = useState(false);
+  const [filingClaims, setFilingClaims] = useState(false);
   const threadEndRef = useRef(null);
 
   useEffect(() => {
@@ -78,7 +79,19 @@ export default function ChatPage() {
     }
   }
 
-  const recoverableCount = compensation?.eligible_order_citations?.length ?? 0;
+  async function fileAllClaims() {
+    if (!compensation?.drafted_claims?.length) return;
+    setFilingClaims(true);
+    try {
+      await Promise.all(compensation.drafted_claims.map((c) => api.submitClaim(c.claim_id)));
+      setCompensation((prev) => (prev ? { ...prev, filed: true } : prev));
+    } finally {
+      setFilingClaims(false);
+    }
+  }
+
+  const recoverableCount = compensation?.drafted_claims?.length ?? 0;
+  const recoverableTotal = compensation?.total_recoverable ?? 0;
 
   return (
     <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -122,17 +135,26 @@ export default function ChatPage() {
                   </motion.span>
                   <span style={{ fontSize: 13, flex: 1 }}>
                     {compBusy ? (
-                      "Checking yesterday's cancellations against the SLA…"
+                      "Checking recent cancellations against the SLA…"
                     ) : recoverableCount > 0 ? (
-                      <><strong style={{ fontWeight: 600 }}>Compensation Recovery:</strong> {recoverableCount} cancelled orders match SLA eligibility.</>
+                      <><strong style={{ fontWeight: 600 }}>Compensation Recovery:</strong> {recoverableCount} drafted claims, ~₹{recoverableTotal.toFixed(0)} recoverable.</>
                     ) : (
-                      "No compensation-eligible cancellations found for yesterday."
+                      "No new compensation-eligible cancellations found."
                     )}
                   </span>
                   {!compBusy && recoverableCount > 0 && (
-                    <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => send("Which of yesterday's cancellations are eligible for compensation, and why?")}>
-                      Review &amp; explain
-                    </button>
+                    compensation.filed ? (
+                      <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />Filed</span>
+                    ) : (
+                      <>
+                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => send("Which of yesterday's cancellations are eligible for compensation, and why?")}>
+                          Explain
+                        </button>
+                        <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={fileAllClaims} disabled={filingClaims}>
+                          {filingClaims ? "Filing…" : `File ${recoverableCount} claims`}
+                        </button>
+                      </>
+                    )
                   )}
                 </div>
               </motion.div>

@@ -22,11 +22,14 @@ PLATFORMS = ["swiggy", "zomato"]
 # The exact eligible/excluded set from the UI mockup's Screen 02, dated as
 # "yesterday" relative to whenever this script runs — keeps the demo
 # narrative reproducible without a stale hardcoded date.
+# delivery_s below = SLA target (2400s) + the delay-in-minutes shown in the
+# mockup's table, so the deterministic eligibility rules (compensation_rules.py)
+# classify these exactly the way the mockup depicts them.
 MOCKUP_CANCELLATIONS = [
-    ("4021", "Zone 3", "swiggy", "weather_delay", True, 2680, 560),
-    ("4198", "Zone 3", "zomato", "weather_delay", True, 2600, 410),
-    ("4203", "Zone 3", "swiggy", "courier_no_show", False, 2820, 720),
-    ("4212", "Zone 3", "zomato", "restaurant_closed_early", False, 2520, 340),
+    ("4021", "Zone 3", "swiggy", "weather_delay", True, 2400 + 38 * 60, 560),
+    ("4198", "Zone 3", "zomato", "weather_delay", True, 2400 + 22 * 60, 410),
+    ("4203", "Zone 3", "swiggy", "courier_no_show", False, 2400 + 45 * 60, 720),
+    ("4212", "Zone 3", "zomato", "restaurant_closed_early", False, 2400 + 12 * 60, 340),
     ("4177", "Zone 3", "swiggy", "customer_cancelled_predispatch", False, None, 290),
     ("4190", "Zone 3", "zomato", "customer_cancelled_predispatch", False, None, 510),
 ]

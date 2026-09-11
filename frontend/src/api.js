@@ -23,6 +23,10 @@ export const api = {
     }),
 
   listSources: () => request("/ingest/sources"),
+  listFlaggedChunks: () => request("/ingest/flagged"),
+  approveFlaggedChunk: (chunkId) => request(`/ingest/flagged/${chunkId}/approve`, { method: "POST" }),
+  removeFlaggedChunk: (chunkId) => request(`/ingest/flagged/${chunkId}`, { method: "DELETE" }),
+  listPolicyImpactReports: () => request("/ingest/policy-impact-reports"),
   uploadOrders: (file) => {
     const form = new FormData();
     form.append("file", file);
@@ -41,7 +45,8 @@ export const api = {
     request("/eval/compare", { method: "POST", body: JSON.stringify({ question }) }),
 
   runCompensationSweep: () => request("/compensation/sweep", { method: "POST" }),
-  listCompensationClaims: () => request("/compensation/claims"),
+  listCompensationClaims: (status) => request(`/compensation/claims${status ? `?status=${status}` : ""}`),
+  submitClaim: (claimId) => request(`/compensation/claims/${claimId}/submit`, { method: "POST" }),
 
   listTraces: () => request("/traces"),
   getTrace: (traceId) => request(`/traces/${traceId}`),

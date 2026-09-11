@@ -3,6 +3,7 @@ import NavBar from "./components/NavBar.jsx";
 import ChatPage from "./pages/ChatPage.jsx";
 import DataSourcesPage from "./pages/DataSourcesPage.jsx";
 import EvalPage from "./pages/EvalPage.jsx";
+import TracesPage from "./pages/TracesPage.jsx";
 import { StatsProvider } from "./statsContext.jsx";
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ChatPage />} />
           <Route path="/sources" element={<DataSourcesPage />} />
+          <Route path="/traces" element={<TracesPage />} />
           <Route path="/eval" element={<EvalPage />} />
         </Routes>
       </div>

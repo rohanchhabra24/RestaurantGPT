@@ -12,6 +12,7 @@ export default function UploadDialog({ onClose, onIndexed }) {
   const [error, setError] = useState(null);
   const [docType, setDocType] = useState("sla");
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10));
+  const [impactReport, setImpactReport] = useState(null);
   const inputRef = useRef(null);
 
   function pickFiles(list) {
@@ -29,7 +30,8 @@ export default function UploadDialog({ onClose, onIndexed }) {
         if (file.name.toLowerCase().endsWith(".csv")) {
           await api.uploadOrders(file);
         } else {
-          await api.uploadDocument(file, docType, effectiveDate);
+          const result = await api.uploadDocument(file, docType, effectiveDate);
+          if (result.impact_report) setImpactReport(result.impact_report);
         }
       }
       setStage(2);
@@ -131,6 +133,27 @@ export default function UploadDialog({ onClose, onIndexed }) {
               ))}
             </AnimatePresence>
           </div>
+
+          {impactReport && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card"
+              style={{ marginTop: 16, borderColor: impactReport.financial_delta < 0 ? "var(--color-danger)" : "var(--color-accent)" }}
+            >
+              <div className="card-kicker">Policy Change Impact — last {impactReport.window_days} days replayed</div>
+              <p style={{ fontSize: 13.5, margin: "6px 0 0", lineHeight: 1.6 }}>
+                Under the new version, <strong>{impactReport.orders_eligible_new}</strong> of {impactReport.orders_evaluated} cancelled
+                orders would be compensation-eligible (was {impactReport.orders_eligible_old}) — total recoverable moves from
+                ₹{impactReport.total_amount_old.toFixed(0)} to ₹{impactReport.total_amount_new.toFixed(0)}.
+              </p>
+              <div style={{ marginTop: 8 }}>
+                <span className={`tag ${impactReport.financial_delta < 0 ? "tag-danger" : "tag-accent"}`}>
+                  {impactReport.financial_delta >= 0 ? "+" : ""}₹{impactReport.financial_delta.toFixed(0)} / {impactReport.window_days}d
+                </span>
+              </div>
+            </motion.div>
+          )}
         </div>
         <div className="dialog-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>

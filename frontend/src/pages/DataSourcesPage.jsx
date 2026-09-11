@@ -38,10 +38,24 @@ function FlowWidget({ orderCount, chunkCount }) {
 
 export default function DataSourcesPage() {
   const [sources, setSources] = useState(null);
+  const [flagged, setFlagged] = useState([]);
+  const [impactReports, setImpactReports] = useState([]);
   const [uploadOpen, setUploadOpen] = useState(false);
 
   function refresh() {
     api.listSources().then(setSources).catch(() => {});
+    api.listFlaggedChunks().then(setFlagged).catch(() => {});
+    api.listPolicyImpactReports().then(setImpactReports).catch(() => {});
+  }
+
+  async function approve(chunkId) {
+    await api.approveFlaggedChunk(chunkId);
+    refresh();
+  }
+
+  async function remove(chunkId) {
+    await api.removeFlaggedChunk(chunkId);
+    refresh();
   }
 
   useEffect(refresh, []);
@@ -87,12 +101,66 @@ export default function DataSourcesPage() {
                 <div className="card-title">{d.source_name}</div>
                 <div className="dim" style={{ fontSize: 12 }}>{d.doc_type} · v{d.version} · effective {d.effective_date} · {d.chunk_count} chunks indexed</div>
               </div>
+              {Number(d.flagged_count) > 0 && (
+                <span className="tag tag-danger">{d.flagged_count} flagged</span>
+              )}
             </motion.div>
           )) : (
             <div className="dim" style={{ fontSize: 13 }}>No policy documents indexed yet.</div>
           )}
         </div>
       </div>
+
+      {impactReports.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Policy change impact history</div>
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+            {impactReports.map((r) => (
+              <div key={r.id} className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <Icon name="route" size={18} style={{ color: "var(--color-accent)" }} />
+                <div style={{ flex: 1 }}>
+                  <div className="card-title">
+                    {r.old_source_name ? `v${r.old_version} → v${r.new_version}` : `${r.new_source_name} (first version)`}
+                  </div>
+                  <div className="dim" style={{ fontSize: 12 }}>
+                    {r.orders_eligible_old} → {r.orders_eligible_new} eligible orders over {r.orders_evaluated} scanned
+                  </div>
+                </div>
+                <span className={`tag ${Number(r.financial_delta) < 0 ? "tag-danger" : "tag-accent"} mono`}>
+                  {Number(r.financial_delta) >= 0 ? "+" : ""}₹{Number(r.financial_delta).toFixed(0)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {flagged.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--color-danger)" }}>
+            Needs review — possible prompt injection
+          </div>
+          <p className="dim" style={{ margin: "4px 0 8px", fontSize: 12.5, maxWidth: 620 }}>
+            These chunks were quarantined at ingestion and are excluded from retrieval until
+            you clear them — they never reach the model as-is.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {flagged.map((f) => (
+              <div key={f.id} className="card elev-sm" style={{ borderColor: "var(--color-danger)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div className="dim mono" style={{ fontSize: 11 }}>{f.source_name} · {f.section_label}</div>
+                  <span className="tag tag-danger">{f.flag_reason}</span>
+                </div>
+                <p style={{ fontSize: 12.5, margin: "8px 0", color: "var(--color-text-dim)", whiteSpace: "pre-wrap" }}>{f.chunk_text.slice(0, 240)}{f.chunk_text.length > 240 ? "…" : ""}</p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: 12 }} onClick={() => approve(f.id)}>Approve — not injection</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, color: "var(--color-danger)" }} onClick={() => remove(f.id)}>Remove chunk</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {uploadOpen && <UploadDialog onClose={() => setUploadOpen(false)} onIndexed={refresh} />}
     </div>

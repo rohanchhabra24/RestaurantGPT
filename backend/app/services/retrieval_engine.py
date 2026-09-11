@@ -27,6 +27,7 @@ async def hybrid_search(query: str, restaurant_id: str, top_k: int = 5) -> list[
             from policy_chunks pc
             join policy_documents pd on pd.id = pc.policy_document_id
             where pc.restaurant_id = $2
+              and pc.flagged = false
               and pd.effective_date <= now()
               and (pd.expiry_date is null or pd.expiry_date >= now())
             order by pc.embedding <=> $1::vector
@@ -42,6 +43,7 @@ async def hybrid_search(query: str, restaurant_id: str, top_k: int = 5) -> list[
             from policy_chunks pc
             join policy_documents pd on pd.id = pc.policy_document_id
             where pc.restaurant_id = $2
+              and pc.flagged = false
               and pd.effective_date <= now()
               and (pd.expiry_date is null or pd.expiry_date >= now())
               and pc.fts @@ websearch_to_tsquery('english', $1)
