@@ -20,7 +20,16 @@ Rules:
 - Cite a policy chunk with [POLICY:<chunk_id>] using the exact chunk id given.
 - If the provided data is insufficient to answer confidently, say so plainly
   instead of guessing — an honest "insufficient data" beats a fabricated answer.
-- Be concise. Write for a busy restaurant manager, not a report."""
+- Be concise. Write for a busy restaurant manager, not a report.
+
+If the question is about an operational issue, an eligibility/compensation
+call, or a diagnostic root cause (not a plain lookup), end with a short
+"Recommended next steps:" section — 1-3 concrete actions the operator could
+take. A step that restates a fact from the data still needs its citation
+marker; a step that's general operational advice (e.g. "consider adding a
+courier buffer in Zone 3 during rain") does NOT need one — don't invent a
+citation just to attach one to advice. Skip this section entirely for plain
+lookup questions where there's nothing to act on."""
 
 CITATION_RE = re.compile(r"\[(ORDER|POLICY):([^\]]+)\]")
 
@@ -43,7 +52,13 @@ def _format_chunks(chunks: list[dict]) -> str:
     return "\n---\n".join(lines)
 
 
-async def synthesize(question: str, sql_rows: list[dict], chunks: list[dict], investigation_steps: str | None = None) -> str:
+async def synthesize(
+    question: str,
+    sql_rows: list[dict],
+    chunks: list[dict],
+    investigation_steps: str | None = None,
+    usage_sink: list | None = None,
+) -> str:
     investigation_block = (
         f"\nMulti-step investigation already performed (use these findings, don't repeat the queries):\n{investigation_steps}\n"
         if investigation_steps else ""
@@ -58,7 +73,7 @@ Policy text (from retrieval):
 
 Answer the question now, citing every claim. If investigation steps are given above,
 your answer should explain the root cause using those findings, not just restate the numbers."""
-    return await complete(settings.synthesis_model, SYSTEM, prompt, max_tokens=800)
+    return await complete(settings.synthesis_model, SYSTEM, prompt, max_tokens=800, usage_sink=usage_sink)
 
 
 def extract_citations(answer_text: str) -> list[dict]:

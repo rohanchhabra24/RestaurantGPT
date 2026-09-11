@@ -67,9 +67,9 @@ def validate_sql(sql: str, restaurant_id: str) -> str:
     return stripped
 
 
-async def generate_sql(question: str, slots: dict, restaurant_id: str) -> str:
+async def generate_sql(question: str, slots: dict, restaurant_id: str, usage_sink: list | None = None) -> str:
     prompt = f"Question: {question}\nSlots: {slots}\nrestaurant_id placeholder: '{restaurant_id}'"
-    raw = await complete(settings.sql_model, SYSTEM, prompt, max_tokens=400)
+    raw = await complete(settings.sql_model, SYSTEM, prompt, max_tokens=400, usage_sink=usage_sink)
     raw = raw.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(sql)?\s*|\s*```$", "", raw, flags=re.IGNORECASE | re.MULTILINE)

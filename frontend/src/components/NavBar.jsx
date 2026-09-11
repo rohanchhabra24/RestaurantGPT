@@ -4,9 +4,11 @@ import Icon from "./Icon.jsx";
 import { useStats } from "../statsContext.jsx";
 import UploadDialog from "./UploadDialog.jsx";
 import { useState } from "react";
+import { useAuth } from "../authContext.jsx";
 
 export default function NavBar() {
   const { stats } = useStats();
+  const { user, signOut } = useAuth();
   const [uploadOpen, setUploadOpen] = useState(false);
 
   return (
@@ -51,6 +53,9 @@ export default function NavBar() {
         <button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />
           Upload data
+        </button>
+        <button type="button" className="btn btn-ghost" title={user?.email} onClick={signOut}>
+          Sign out
         </button>
       </div>
 

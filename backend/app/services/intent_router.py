@@ -31,9 +31,9 @@ Respond with ONLY a JSON object: {"route": "...", "slots": {"date_range": "...",
 Omit slot keys that aren't present in the question rather than guessing."""
 
 
-async def classify_intent(question: str) -> dict:
+async def classify_intent(question: str, usage_sink: list | None = None) -> dict:
     try:
-        result = await complete_json(settings.router_model, SYSTEM, question, max_tokens=256)
+        result = await complete_json(settings.router_model, SYSTEM, question, max_tokens=256, usage_sink=usage_sink)
         route = result.get("route")
         if route not in ROUTES:
             raise ValueError(f"unexpected route {route!r}")

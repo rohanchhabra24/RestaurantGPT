@@ -10,7 +10,7 @@ an unverified claim.
 
 import time
 
-from app.services import grounding, intent_router, multi_agent_investigator, retrieval_engine, sql_engine, synthesis
+from app.services import grounding, intent_router, multi_agent_investigator, pricing, retrieval_engine, sql_engine, synthesis
 
 
 class PipelineResult:
@@ -26,6 +26,21 @@ class PipelineResult:
         self.latency_ms_by_stage: dict[str, int] = {}
         self.regenerated: bool = False
         self.investigation_steps: list[str] = []
+        self.usage: list[dict] = []  # one {"model","input_tokens","output_tokens"} per Claude call this turn
+
+    @property
+    def total_input_tokens(self) -> int:
+        return sum(u["input_tokens"] for u in self.usage)
+
+    @property
+    def total_output_tokens(self) -> int:
+        return sum(u["output_tokens"] for u in self.usage)
+
+    @property
+    def estimated_cost_usd(self) -> float:
+        return round(sum(
+            pricing.estimate_cost_usd(u["model"], u["input_tokens"], u["output_tokens"]) for u in self.usage
+        ), 6)
 
 
 def _timed(stage: str, start: float, result: PipelineResult) -> None:
@@ -36,7 +51,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
     result = PipelineResult()
 
     t0 = time.perf_counter()
-    routing = await intent_router.classify_intent(question)
+    routing = await intent_router.classify_intent(question, usage_sink=result.usage)
     _timed("routing", t0, result)
     result.route_taken = routing["route"]
     slots = routing.get("slots", {})
@@ -55,7 +70,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
     if result.route_taken in ("SQL", "HYBRID"):
         t1 = time.perf_counter()
         try:
-            sql = await sql_engine.generate_sql(question, slots, restaurant_id)
+            sql = await sql_engine.generate_sql(question, slots, restaurant_id, usage_sink=result.usage)
             result.generated_sql = sql
             result.sql_rows = await sql_engine.execute_sql(sql)
         except sql_engine.SQLValidationError as e:
@@ -78,7 +93,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
         _timed("investigation", t2b, result)
 
     t3 = time.perf_counter()
-    raw_answer = await synthesis.synthesize(question, result.sql_rows, result.chunks, investigation_steps_text)
+    raw_answer = await synthesis.synthesize(question, result.sql_rows, result.chunks, investigation_steps_text, usage_sink=result.usage)
     _timed("synthesis", t3, result)
 
     t4 = time.perf_counter()
@@ -93,7 +108,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
             "provided data. Answer again using ONLY the order IDs and policy chunk "
             "ids actually present below, or say the data is insufficient.)"
         )
-        raw_answer = await synthesis.synthesize(corrective_question, result.sql_rows, result.chunks, investigation_steps_text)
+        raw_answer = await synthesis.synthesize(corrective_question, result.sql_rows, result.chunks, investigation_steps_text, usage_sink=result.usage)
         citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
         result.regenerated = True
 

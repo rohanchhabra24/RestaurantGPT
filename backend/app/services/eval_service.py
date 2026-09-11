@@ -19,6 +19,12 @@ from app.db import get_pool
 from app.services.claude_client import complete
 from app.services.pipeline import run_pipeline
 
+# CI-gate usage (eval/run_eval.py) has no authenticated tenant to run
+# against, so it falls back to the seeded demo restaurant. The API route
+# (routers/eval.py) always passes the caller's own authenticated
+# restaurant_id instead — see run_golden_set's parameter below.
+_FALLBACK_RESTAURANT_ID = settings.demo_restaurant_id
+
 GOLDEN_SET_PATH = Path(__file__).resolve().parents[2] / "eval" / "golden_set.json"
 
 
@@ -26,8 +32,8 @@ def load_golden_set() -> list[dict]:
     return json.loads(GOLDEN_SET_PATH.read_text())
 
 
-async def run_case(case: dict) -> dict:
-    result = await run_pipeline(case["question"], settings.demo_restaurant_id)
+async def run_case(case: dict, restaurant_id: str) -> dict:
+    result = await run_pipeline(case["question"], restaurant_id)
 
     route_ok = case["expected_route"] is None or result.route_taken == case["expected_route"]
     grounded_ok = result.grounding_verdict in ("grounded", "no_claims", "partial") and result.grounding_verdict != "ungrounded"
@@ -54,9 +60,10 @@ async def run_case(case: dict) -> dict:
     }
 
 
-async def run_golden_set() -> dict:
+async def run_golden_set(restaurant_id: str | None = None) -> dict:
     cases = load_golden_set()
-    results = [await run_case(c) for c in cases]
+    rid = restaurant_id or _FALLBACK_RESTAURANT_ID
+    results = [await run_case(c, rid) for c in cases]
     passed = sum(1 for r in results if r["passed"])
     avg_coverage = sum(r["citation_coverage"] for r in results) / len(results) if results else 0.0
     return {
@@ -74,7 +81,7 @@ NAIVE_SYSTEM = (
 )
 
 
-async def naive_vs_grounded(question: str) -> dict:
+async def naive_vs_grounded(question: str, restaurant_id: str) -> dict:
     """Runs the same question through (a) a naive single-shot call with a raw,
     unfiltered data dump and no citation requirement — roughly what "paste your
     CSV into a chatbot" looks like — and (b) the real grounded pipeline. Both
@@ -82,7 +89,7 @@ async def naive_vs_grounded(question: str) -> dict:
     rather than a scripted example.
     """
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
     async with pool.acquire() as conn:
         order_rows = await conn.fetch(
             "select aggregator_order_id, zone, status, cancellation_reason, delivery_time_seconds, "
@@ -98,7 +105,7 @@ async def naive_vs_grounded(question: str) -> dict:
     naive_prompt = f"Data:\n{data_dump[:12000]}\n\nQuestion: {question}"
     naive_answer = await complete(settings.synthesis_model, NAIVE_SYSTEM, naive_prompt, max_tokens=600)
 
-    grounded = await run_pipeline(question, settings.demo_restaurant_id)
+    grounded = await run_pipeline(question, restaurant_id)
 
     return {
         "question": question,

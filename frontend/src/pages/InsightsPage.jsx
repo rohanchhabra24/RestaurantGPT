@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import CountUp from "../components/CountUp.jsx";
+import Icon from "../components/Icon.jsx";
 import { api } from "../api.js";
 
 // Categorical palette, fixed order (validated dark-mode set — see the
@@ -99,10 +100,21 @@ export default function InsightsPage() {
         </p>
       </div>
 
+      {data.cost?.over_threshold && (
+        <div className="tag tag-danger" style={{ height: "auto", padding: "10px 14px", whiteSpace: "normal", gap: 8 }}>
+          <Icon name="bolt" size={13} />
+          Month-to-date spend is ${data.cost.month_to_date_usd.toFixed(2)}, over your ${data.cost.threshold_usd.toFixed(0)}
+          alert threshold. This is alert-only — queries keep working — but worth a look.
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
         <StatTile label="Total queries" value={data.total_queries} />
         <StatTile label="Cache hit rate" value={data.cache_hit_rate * 100} decimals={1} suffix="%" sub="Warmstart semantic cache" />
         <StatTile label="Grounded rate" value={data.grounded_rate * 100} decimals={1} suffix="%" />
+        {data.cost && (
+          <StatTile label="Month-to-date spend" value={data.cost.month_to_date_usd} decimals={2} suffix=" USD" />
+        )}
         {data.ungrounded_count > 0 && (
           <StatTile label="Ungrounded (needs attention)" value={data.ungrounded_count} decimals={0} />
         )}

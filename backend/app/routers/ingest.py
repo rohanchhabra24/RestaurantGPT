@@ -1,10 +1,10 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
 
-from app.config import settings
+from app.auth import require_tenant
 from app.db import get_pool
 from app.services import ingestion, policy_impact
 
@@ -12,9 +12,9 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 
 @router.get("/sources")
-async def list_sources():
+async def list_sources(restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
     async with pool.acquire() as conn:
         order_count = await conn.fetchval("select count(*) from orders where restaurant_id = $1", rid)
         last_order = await conn.fetchval(
@@ -38,9 +38,9 @@ async def list_sources():
 
 
 @router.get("/flagged")
-async def list_flagged_chunks():
+async def list_flagged_chunks(restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """select pc.id, pc.chunk_text, pc.section_label, pc.flag_reason, pd.source_name
@@ -53,31 +53,39 @@ async def list_flagged_chunks():
 
 
 @router.post("/flagged/{chunk_id}/approve")
-async def approve_flagged_chunk(chunk_id: str):
+async def approve_flagged_chunk(chunk_id: str, restaurant_id: str = Depends(require_tenant)):
     """Operator reviewed the chunk and it's fine — clear the flag so it
     re-enters retrieval."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "update policy_chunks set flagged = false where id = $1", uuid.UUID(chunk_id)
+        row = await conn.fetchrow(
+            "update policy_chunks set flagged = false where id = $1 and restaurant_id = $2 returning id",
+            uuid.UUID(chunk_id), uuid.UUID(restaurant_id),
         )
+    if row is None:
+        raise HTTPException(404, "chunk not found")
     return {"chunk_id": chunk_id, "flagged": False}
 
 
 @router.delete("/flagged/{chunk_id}")
-async def remove_flagged_chunk(chunk_id: str):
+async def remove_flagged_chunk(chunk_id: str, restaurant_id: str = Depends(require_tenant)):
     """Operator reviewed the chunk and it's genuinely bad — remove it
     entirely rather than just leaving it quarantined."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("delete from policy_chunks where id = $1", uuid.UUID(chunk_id))
+        row = await conn.fetchrow(
+            "delete from policy_chunks where id = $1 and restaurant_id = $2 returning id",
+            uuid.UUID(chunk_id), uuid.UUID(restaurant_id),
+        )
+    if row is None:
+        raise HTTPException(404, "chunk not found")
     return {"chunk_id": chunk_id, "removed": True}
 
 
 @router.post("/orders")
-async def ingest_orders(file: UploadFile):
+async def ingest_orders(file: UploadFile, restaurant_id: str = Depends(require_tenant)):
     raw = await file.read()
-    count = await ingestion.ingest_orders_csv(raw, settings.demo_restaurant_id)
+    count = await ingestion.ingest_orders_csv(raw, restaurant_id)
     return {"orders_ingested": count}
 
 
@@ -86,6 +94,7 @@ async def ingest_document(
     file: UploadFile,
     doc_type: str = Form("sla"),
     effective_date: str = Form(...),
+    restaurant_id: str = Depends(require_tenant),
 ):
     raw = await file.read()
     if file.filename and file.filename.lower().endswith(".pdf"):
@@ -98,22 +107,22 @@ async def ingest_document(
         source_name=file.filename or "uploaded_document",
         doc_type=doc_type,
         effective_date=date.fromisoformat(effective_date),
-        restaurant_id=settings.demo_restaurant_id,
+        restaurant_id=restaurant_id,
     )
 
     impact_report = None
     if doc_type in ("sla", "compensation"):
         impact_report = await policy_impact.run_impact_simulation(
-            result["document_id"], settings.demo_restaurant_id, doc_type
+            result["document_id"], restaurant_id, doc_type
         )
 
     return {**result, "impact_report": impact_report}
 
 
 @router.get("/policy-impact-reports")
-async def list_policy_impact_reports():
+async def list_policy_impact_reports(restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """select pir.*, old_pd.source_name as old_source_name, old_pd.version as old_version,

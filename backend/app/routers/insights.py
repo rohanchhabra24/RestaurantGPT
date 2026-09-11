@@ -7,10 +7,11 @@ queries accumulate.
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.config import settings
+from app.auth import require_tenant
 from app.db import get_pool
+from app.services import usage_tracking
 
 router = APIRouter(prefix="/api/insights", tags=["insights"])
 
@@ -19,9 +20,9 @@ TREND_DAYS = 14
 
 
 @router.get("/summary")
-async def summary():
+async def summary(restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
 
     async with pool.acquire() as conn:
         totals = await conn.fetchrow(
@@ -61,8 +62,10 @@ async def summary():
         )
 
     total = totals["total"] or 0
+    cost_alert = await usage_tracking.check_cost_alert(restaurant_id)
     return {
         "window_days": WINDOW_DAYS,
+        "cost": cost_alert,
         "total_queries": total,
         "cache_hit_rate": round(totals["cache_hits"] / total, 3) if total else 0.0,
         "grounded_rate": round(totals["grounded_or_no_claims"] / total, 3) if total else 0.0,

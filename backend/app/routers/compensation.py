@@ -13,12 +13,12 @@ that actually get persisted do not — see compensation_rules.py for why.
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 
-from app.config import settings
+from app.auth import require_tenant
 from app.db import get_pool
-from app.services import compensation_rules
+from app.services import compensation_rules, rate_limit
 from app.services.pipeline import run_pipeline
 from app.services.retrieval_engine import hybrid_search
 
@@ -41,8 +41,9 @@ SWEEP_WINDOW_SQL = """
 
 
 @router.post("/sweep")
-async def run_sweep():
-    rid = uuid.UUID(settings.demo_restaurant_id)
+async def run_sweep(restaurant_id: str = Depends(require_tenant)):
+    await rate_limit.check_and_record(restaurant_id, "compensation_sweep")
+    rid = uuid.UUID(restaurant_id)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -54,7 +55,7 @@ async def run_sweep():
         if not result.eligible:
             continue
 
-        chunks = await hybrid_search(result.clause_search_query, str(rid), top_k=1)
+        chunks = await hybrid_search(result.clause_search_query, restaurant_id, top_k=1)
         policy_chunk_id = uuid.UUID(chunks[0]["id"]) if chunks else None
 
         async with pool.acquire() as conn:
@@ -76,20 +77,22 @@ async def run_sweep():
     # The narrative answer still goes through the full grounded pipeline —
     # this is what the operator reads; it explains the numbers above rather
     # than computing them.
-    pipeline_result = await run_pipeline(SWEEP_QUESTION, str(rid))
+    pipeline_result = await run_pipeline(SWEEP_QUESTION, restaurant_id)
     async with pool.acquire() as conn:
         trace_row = await conn.fetchrow(
             """insert into query_traces
                (restaurant_id, question, route_taken, generated_sql, sql_result_row_count,
                 retrieved_chunk_ids, claimed_citations, grounding_verdict, citation_coverage,
-                latency_ms_by_stage)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id""",
+                latency_ms_by_stage, input_tokens, output_tokens, estimated_cost_usd)
+               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id""",
             rid, SWEEP_QUESTION, pipeline_result.route_taken, pipeline_result.generated_sql,
             len(pipeline_result.sql_rows),
             [uuid.UUID(c["id"]) for c in pipeline_result.chunks],
             json.dumps([c.model_dump() for c in pipeline_result.citations]),
             pipeline_result.grounding_verdict, pipeline_result.citation_coverage,
             json.dumps(pipeline_result.latency_ms_by_stage),
+            pipeline_result.total_input_tokens, pipeline_result.total_output_tokens,
+            pipeline_result.estimated_cost_usd,
         )
         if drafted:
             await conn.execute(
@@ -110,9 +113,9 @@ async def run_sweep():
 
 
 @router.get("/claims")
-async def list_claims(status: str | None = None):
+async def list_claims(status: str | None = None, restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
-    rid = uuid.UUID(settings.demo_restaurant_id)
+    rid = uuid.UUID(restaurant_id)
     query = """select cc.id, cc.computed_amount, cc.status, cc.created_at, cc.resolved_at,
                       o.aggregator_order_id, o.cancellation_reason
                from compensation_claims cc join orders o on o.id = cc.order_id
@@ -129,12 +132,13 @@ async def list_claims(status: str | None = None):
 
 
 @router.post("/claims/{claim_id}/submit")
-async def submit_claim(claim_id: str):
+async def submit_claim(claim_id: str, restaurant_id: str = Depends(require_tenant)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "update compensation_claims set status = 'submitted' where id = $1 and status = 'drafted' returning id",
-            uuid.UUID(claim_id),
+            """update compensation_claims set status = 'submitted'
+               where id = $1 and restaurant_id = $2 and status = 'drafted' returning id""",
+            uuid.UUID(claim_id), uuid.UUID(restaurant_id),
         )
     if row is None:
         raise HTTPException(404, "claim not found or not in 'drafted' state")

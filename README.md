@@ -14,11 +14,17 @@ frontend/  React + Vite
 ## 1. Set up Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run the migrations in order: `001_init.sql`,
+2. In the SQL editor, run the migrations **in order**: `001_init.sql`,
    `002_injection_guardrail.sql`, `003_policy_impact.sql`,
-   `004_diagnostics.sql`, `005_semantic_cache.sql`.
-3. Grab your project's connection string (Settings → Database) and
-   service-role key (Settings → API).
+   `004_diagnostics.sql`, `005_semantic_cache.sql`, `006_auth_multitenancy.sql`.
+3. **Manual step (can't be done from a migration):** in the dashboard, go to
+   Authentication → Hooks → "Customize Access Token (JWT) Claims" and select
+   `public.custom_access_token_hook` as the hook function. Without this,
+   tokens never carry a `restaurant_id` claim and every authenticated
+   request gets stuck at "complete onboarding first" even after onboarding.
+4. Grab: the connection string (Settings → Database), the service-role key
+   (Settings → API), the anon/public key (Settings → API), and the JWT
+   secret (Settings → API → JWT Settings).
 
 ## 2. Backend
 
@@ -26,15 +32,29 @@ frontend/  React + Vite
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in SUPABASE_DB_URL and ANTHROPIC_API_KEY
+cp .env.example .env   # fill in SUPABASE_DB_URL, SUPABASE_JWT_SECRET, ANTHROPIC_API_KEY
 ```
 
 Seed demo data (a relative-dated order set matching the UI's example
-scenario, plus the SLA policy document):
+scenario, plus the SLA policy document) against the fixed demo restaurant:
 
 ```bash
 python -m seed.seed
 ```
+
+To actually see that data in the app, link your own test account to it
+instead of onboarding a blank new restaurant — sign up once via the
+frontend (step 3 below creates you a fresh, empty restaurant), then in the
+Supabase SQL editor:
+
+```sql
+insert into restaurant_members (restaurant_id, user_id, role)
+values ('00000000-0000-0000-0000-000000000001', '<your-user-id-from-Authentication-Users>', 'owner');
+```
+
+(Remove the row it auto-onboarded you into first, or just use a second
+test account for the seeded restaurant.) Sign out and back in — the custom
+claims hook only runs at token issuance.
 
 Run the API:
 
@@ -58,13 +78,20 @@ Exits non-zero if the golden-set pass rate drops below 85%.
 ```bash
 cd frontend
 npm install
+cp .env.example .env   # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 npm run dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` to `localhost:8000`.
+Open http://localhost:5173. Vite proxies `/api` to `localhost:8000`. You'll
+land on a sign-up/sign-in screen — create an account, then the onboarding
+screen creates your restaurant (see the linking step above if you want to
+see the seeded demo data instead of a blank one).
 
 ## 4. Demo path
 
+0. **Sign up, then onboard.** Every route requires a bearer token now —
+   there's no more hitting the API unauthenticated, and no more one shared
+   demo tenant every request silently ran against.
 1. **Chat** — click one of the example prompts (or ask the compound
    question: *"Which of yesterday's cancellations in Zone 3 are
    compensation-eligible?"*). Click any citation chip to open the source
@@ -110,8 +137,48 @@ Open http://localhost:5173. Vite proxies `/api` to `localhost:8000`.
     `data_version` counter, not a timer.
 11. **Insights** — real aggregates over `query_traces`: route distribution,
     cache hit rate, grounded rate, avg latency by pipeline stage, and a
-    14-day groundedness trend. Nothing on this page is synthetic — it's
-    empty until real queries accumulate.
+    14-day groundedness trend. Also shows real month-to-date spend
+    (`estimated_cost_usd`, computed from each call's actual token usage —
+    see `pricing.py`) and an alert banner past a configurable threshold —
+    alert-only, by design: it never blocks a tenant's queries.
+12. **Rate limiting** — each tenant is capped (20/min, 500/day by default,
+    `api_requests` table); exceeding it returns a 429 rather than an
+    unbounded ability to run up the bill.
+13. **Recommended next steps** — a diagnostic or eligibility answer now
+    ends with 1-3 concrete actions, still grounded the same way as the
+    rest of the answer (a step restating a fact still needs its citation;
+    general operational advice doesn't need an invented one).
+
+## Privacy & tenant isolation
+
+Two independent layers, not just "the prompt won't let you":
+
+1. **App-layer (real, enforced today):** every route derives
+   `restaurant_id` from the verified JWT (`app/auth.py`) — never from a
+   request body or query param — and every query in every router/service
+   filters on it explicitly. `conversations.py`'s conversation-ownership
+   check and `ingest.py`'s flagged-chunk approve/remove are worth calling
+   out specifically: without them, a client-supplied id in the URL
+   (`conversation_id`, `chunk_id`, `claim_id`, `card_id`) would let one
+   tenant read or mutate another's rows just by guessing an id, even with
+   auth in place — every such route now checks `restaurant_id` ownership
+   before acting.
+2. **Prompt-level:** `sql_engine.validate_sql` hard-requires the tenant's
+   `restaurant_id` literal in every generated query, and that literal is
+   injected by our own code — never something a user's question can steer
+   the model into changing.
+
+**What's still open, honestly:** the backend connects to Postgres with the
+Supabase **service-role key**, which bypasses RLS. The RLS policies from
+`001_init.sql` onward are written and ready (`auth.jwt() ->> 'restaurant_id'`),
+but they're not the thing actually stopping cross-tenant access right now —
+layer 1 above is. Enforcing RLS for real means running each request's
+queries with that request's JWT claims set on the connection
+(`SET LOCAL request.jwt.claims`) instead of the service-role bypass, so a
+bug that ever forgot a `WHERE restaurant_id = ...` would be caught by
+Postgres itself rather than relying on every call site getting it right.
+That's the next hardening step, not yet done — noting it plainly rather
+than implying RLS is doing work it isn't.
 
 ## Notes on scope
 

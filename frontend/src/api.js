@@ -1,16 +1,31 @@
 const BASE = "/api";
 
+// Set by authContext.jsx whenever the Supabase session changes. Kept as a
+// module-level value rather than threaded through every api.js call site —
+// there's exactly one active session per tab, and every request needs it.
+let currentAccessToken = null;
+
+export function setAccessToken(token) {
+  currentAccessToken = token;
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
-    ...options,
-  });
+  const headers = options.body instanceof FormData ? {} : { "Content-Type": "application/json" };
+  if (currentAccessToken) headers["Authorization"] = `Bearer ${currentAccessToken}`;
+
+  const res = await fetch(`${BASE}${path}`, { headers, ...options });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status} ${path}: ${text}`);
   }
   return res.json();
 }
+
+export const onboardingApi = {
+  me: () => request("/onboarding/me"),
+  createRestaurant: (name) =>
+    request("/onboarding/restaurant", { method: "POST", body: JSON.stringify({ name }) }),
+};
 
 export const api = {
   listConversations: () => request("/conversations"),
