@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -6,7 +7,8 @@ from fastapi.encoders import jsonable_encoder
 
 from app.config import settings
 from app.db import get_pool
-from app.models import ConversationOut, MessageIn, MessageOut
+from app.models import Citation, ConversationOut, MessageIn, MessageOut
+from app.services import semantic_cache
 from app.services.pipeline import run_pipeline
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
@@ -68,7 +70,49 @@ async def post_message(conversation_id: str, body: MessageIn):
                 "update conversations set title = $1 where id = $2", body.content[:80], conv_uuid
             )
 
+    t0 = time.perf_counter()
+    cached = await semantic_cache.lookup(body.content, settings.demo_restaurant_id)
+    cache_lookup_ms = int((time.perf_counter() - t0) * 1000)
+
+    if cached:
+        citations = [Citation(**c) for c in cached["citations"]]
+        citations_json = json.dumps(cached["citations"])
+
+        async with pool.acquire() as conn:
+            msg_row = await conn.fetchrow(
+                """insert into messages (conversation_id, role, content, citations)
+                   values ($1, 'assistant', $2, $3) returning id""",
+                conv_uuid, cached["answer_text"], citations_json,
+            )
+            trace_row = await conn.fetchrow(
+                """insert into query_traces
+                   (message_id, restaurant_id, question, route_taken, sql_result_row_count,
+                    claimed_citations, grounding_verdict, citation_coverage,
+                    latency_ms_by_stage, served_from_cache)
+                   values ($1,$2,$3,$4,$5,$6,$7,$8,$9,true) returning id""",
+                msg_row["id"], uuid.UUID(settings.demo_restaurant_id), body.content,
+                cached["route_taken"], len(cached["data_table"]), citations_json,
+                cached["grounding_verdict"], cached["citation_coverage"],
+                json.dumps({"cache_lookup": cache_lookup_ms}),
+            )
+
+        return MessageOut(
+            id=str(msg_row["id"]),
+            role="assistant",
+            content=cached["answer_text"],
+            citations=citations,
+            route_taken=cached["route_taken"],
+            grounding_verdict=cached["grounding_verdict"],
+            citation_coverage=cached["citation_coverage"],
+            latency_ms_by_stage={"cache_lookup": cache_lookup_ms},
+            trace_id=str(trace_row["id"]),
+            data_table=cached["data_table"],
+            from_cache=True,
+            cache_similarity=cached["similarity"],
+        )
+
     result = await run_pipeline(body.content, settings.demo_restaurant_id)
+    await semantic_cache.store(body.content, settings.demo_restaurant_id, result)
 
     citations_json = json.dumps([c.model_dump() for c in result.citations])
 

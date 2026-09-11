@@ -59,6 +59,7 @@ const PATHS = {
       <path d="M8 19l-1 2M12.5 19l-1 2M17 19l-1 2" />
     </>
   ),
+  bolt: <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />,
   scooter: (
     <>
       <circle cx="5.5" cy="18" r="2.2" />

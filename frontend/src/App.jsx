@@ -5,6 +5,7 @@ import DataSourcesPage from "./pages/DataSourcesPage.jsx";
 import EvalPage from "./pages/EvalPage.jsx";
 import TracesPage from "./pages/TracesPage.jsx";
 import DiagnosesPage from "./pages/DiagnosesPage.jsx";
+import InsightsPage from "./pages/InsightsPage.jsx";
 import { StatsProvider } from "./statsContext.jsx";
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/sources" element={<DataSourcesPage />} />
           <Route path="/traces" element={<TracesPage />} />
           <Route path="/diagnoses" element={<DiagnosesPage />} />
+          <Route path="/insights" element={<InsightsPage />} />
           <Route path="/eval" element={<EvalPage />} />
         </Routes>
       </div>

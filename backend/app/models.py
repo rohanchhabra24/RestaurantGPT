@@ -31,6 +31,8 @@ class MessageOut(BaseModel):
     trace_id: str | None = None
     data_table: list[dict] = []
     investigation_steps: list[str] = []
+    from_cache: bool = False
+    cache_similarity: float | None = None
 
 
 class ConversationOut(BaseModel):

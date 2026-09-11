@@ -46,13 +46,19 @@ export default function AnswerCard({ message, onCiteClick }) {
       transition={{ duration: 0.35 }}
       style={{ maxWidth: 920, display: "flex", flexDirection: "column", gap: 14 }}
     >
-      {(message.route_taken || badges.length > 0) && (
+      {(message.route_taken || badges.length > 0 || message.from_cache) && (
         <motion.div
           initial="hidden"
           animate="show"
           variants={{ show: { transition: { staggerChildren: 0.08 } } }}
           style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
         >
+          {message.from_cache && (
+            <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-accent mono" style={{ gap: 5 }}>
+              <Icon name="bolt" size={11} />served from cache
+              {message.cache_similarity != null && ` (${(message.cache_similarity * 100).toFixed(0)}% match)`}
+            </motion.span>
+          )}
           {message.route_taken && (
             <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-outline mono" style={{ gap: 5 }}>
               <Icon name="route" size={11} />intent_router → {message.route_taken}

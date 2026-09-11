@@ -22,6 +22,7 @@ export default function NavBar() {
       <NavLink to="/sources">Data Sources</NavLink>
       <NavLink to="/diagnoses">Diagnoses</NavLink>
       <NavLink to="/traces">Traces</NavLink>
+      <NavLink to="/insights">Insights</NavLink>
       <NavLink to="/eval">Trust &amp; Eval</NavLink>
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>

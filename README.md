@@ -16,7 +16,7 @@ frontend/  React + Vite
 1. Create a project at [supabase.com](https://supabase.com).
 2. In the SQL editor, run the migrations in order: `001_init.sql`,
    `002_injection_guardrail.sql`, `003_policy_impact.sql`,
-   `004_diagnostics.sql`.
+   `004_diagnostics.sql`, `005_semantic_cache.sql`.
 3. Grab your project's connection string (Settings → Database) and
    service-role key (Settings → API).
 
@@ -102,15 +102,35 @@ Open http://localhost:5173. Vite proxies `/api` to `localhost:8000`.
 9. **Diagnoses** — "Run anomaly scan" checks every zone for a meaningful
    delivery-time deviation and runs the same investigation proactively for
    any it finds, before anyone asks.
+10. **Semantic cache** — ask the same (or a reworded) question twice in
+    Chat; the second answer comes back near-instantly with a "served from
+    cache" badge showing the match similarity. Upload new order/policy
+    data and ask again — the cache invalidates automatically rather than
+    serving a stale answer, because it's keyed on a per-restaurant
+    `data_version` counter, not a timer.
+11. **Insights** — real aggregates over `query_traces`: route distribution,
+    cache hit rate, grounded rate, avg latency by pipeline stage, and a
+    14-day groundedness trend. Nothing on this page is synthetic — it's
+    empty until real queries accumulate.
 
 ## Notes on scope
 
 This build intentionally does not include: a scheduled worker/queue for
 compensation sweeps or the anomaly scan (both are manual-trigger endpoints
 that demonstrate the mechanism on demand instead), cross-encoder reranking,
-or cross-tenant benchmarking — all are documented in `product.md`'s later
-roadmap phases and were deliberately deferred rather than half-built. The
-anomaly scan's deviation check is a plain percentage-threshold-with-a-
-minimum-sample-size rule, not real statistical change-point detection —
-documented as the pragmatic version of that technique for this build's
-scope in `anomaly_scan.py`.
+a fine-tuned router model, multi-tenant load testing, or cross-tenant
+benchmarking — all are documented in `product.md`'s later roadmap phases
+and were deliberately deferred rather than half-built:
+- The anomaly scan's deviation check is a plain percentage-threshold-with-a-
+  minimum-sample-size rule, not real statistical change-point detection —
+  documented as the pragmatic version of that technique in `anomaly_scan.py`.
+- A fine-tuned router model needs real training data volume and infra
+  this environment doesn't have; the LLM-based router already works, so
+  this was skipped rather than half-built.
+- Cross-tenant benchmarking needs real multi-tenant density to mean
+  anything — faking extra tenants just to demo the mechanism would
+  misrepresent what it actually does, so it's deferred until there's
+  real density to benchmark against.
+- Load testing / read-replica scaling / a gRPC service split are ops work
+  that needs a live deployment to test against, not something meaningfully
+  demonstrable as code in this environment.

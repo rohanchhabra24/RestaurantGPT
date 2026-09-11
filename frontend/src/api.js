@@ -51,6 +51,8 @@ export const api = {
   listTraces: () => request("/traces"),
   getTrace: (traceId) => request(`/traces/${traceId}`),
 
+  getInsightsSummary: () => request("/insights/summary"),
+
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),
   markCardReviewed: (cardId) => request(`/diagnostics/cards/${cardId}/mark-reviewed`, { method: "POST" }),

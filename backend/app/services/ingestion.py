@@ -18,6 +18,13 @@ CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
 
 
+async def _bump_data_version(conn, restaurant_id: uuid.UUID) -> None:
+    """Invalidates every existing semantic-cache row for this restaurant —
+    see semantic_cache.py. Called at the end of any ingestion that changes
+    what an answer could be grounded in."""
+    await conn.execute("update restaurants set data_version = data_version + 1 where id = $1", restaurant_id)
+
+
 def chunk_text(text: str) -> list[str]:
     text = " ".join(text.split())
     chunks = []
@@ -57,6 +64,7 @@ async def ingest_orders_csv(raw_csv: bytes, restaurant_id: str) -> int:
                     row.get("weather_flag", "").strip().lower() in ("1", "true", "yes"),
                 )
                 count += 1
+            await _bump_data_version(conn, uuid.UUID(restaurant_id))
     return count
 
 
@@ -109,6 +117,8 @@ async def ingest_policy_document(
                 flagged,
                 flag_reason,
             )
+
+        await _bump_data_version(conn, uuid.UUID(restaurant_id))
 
     return {"document_id": str(doc_id), "version": next_version, "chunks_indexed": len(chunks), "chunks_flagged": flagged_count}
 
