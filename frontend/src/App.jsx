@@ -5,6 +5,7 @@ import ChatPage from "./pages/ChatPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import DataSourcesPage from "./pages/DataSourcesPage.jsx";
 import DiagnosesPage from "./pages/DiagnosesPage.jsx";
+import LandingPage from "./pages/LandingPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import { AuthProvider, useAuth } from "./authContext.jsx";
@@ -53,7 +54,14 @@ function Gate() {
   }, [session]);
 
   if (loading) return <div style={{ height: "100vh" }} />;
-  if (!session) return <LoginPage />;
+  if (!session) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<LandingPage />} />
+      </Routes>
+    );
+  }
   if (onboarded === null) return <div style={{ height: "100vh" }} />;
   if (!onboarded) return <OnboardingPage onDone={() => setOnboarded(true)} />;
   return <AuthedApp />;

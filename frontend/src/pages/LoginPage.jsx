@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
 import { useAuth } from "../authContext.jsx";
 
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
-  const [mode, setMode] = useState("signin"); // "signin" | "signup"
+  const [searchParams] = useSearchParams();
+  // Landing page's "Get started" links here with ?mode=signup so the
+  // form opens on the right tab instead of making people click twice.
+  const [mode, setMode] = useState(searchParams.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,12 +42,12 @@ export default function LoginPage() {
   return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div className="card elev-lg" style={{ width: 360, padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, textDecoration: "none", color: "inherit", width: "fit-content" }}>
           <span style={{ width: 24, height: 24, borderRadius: 6, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />
           </span>
           <span style={{ fontWeight: 600, fontSize: 15 }}>RestaurantGPT</span>
-        </div>
+        </Link>
 
         <h2 style={{ margin: "0 0 4px", fontSize: 17 }}>{mode === "signin" ? "Sign in" : "Create an account"}</h2>
         <p className="dim" style={{ margin: "0 0 18px", fontSize: 13 }}>
