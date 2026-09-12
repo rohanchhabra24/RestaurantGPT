@@ -17,6 +17,16 @@ from app.services.embeddings import embed_batch
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
 
+# Bounds on top of the router's raw-byte upload cap — these bound the actual
+# downstream cost (DB rows written / chunks embedded), which doesn't scale
+# linearly with file size (e.g. a 10MB file of very short rows/lines).
+MAX_ORDER_ROWS = 20_000
+MAX_POLICY_TEXT_CHARS = 300_000
+
+
+class IngestionError(ValueError):
+    pass
+
 
 async def _bump_data_version(conn, restaurant_id: uuid.UUID) -> None:
     """Invalidates every existing semantic-cache row for this restaurant —
@@ -43,6 +53,8 @@ async def ingest_orders_csv(raw_csv: bytes, restaurant_id: str) -> int:
     async with pool.acquire() as conn:
         async with conn.transaction():
             for row in reader:
+                if count >= MAX_ORDER_ROWS:
+                    raise IngestionError(f"CSV has more than {MAX_ORDER_ROWS} rows — split it into smaller files")
                 is_cancelled = row.get("status", "").strip().lower() == "cancelled"
                 await conn.execute(
                     """insert into orders
@@ -76,6 +88,14 @@ async def ingest_policy_document(
     restaurant_id: str,
     expiry_date: date | None = None,
 ) -> dict:
+    if len(text) > MAX_POLICY_TEXT_CHARS:
+        # Bounds embedding cost/chunk count regardless of how the oversized
+        # text got here (a huge paste, or a PDF whose extracted text is far
+        # larger than its byte size would suggest).
+        raise IngestionError(
+            f"Document text is too long ({len(text)} chars, max {MAX_POLICY_TEXT_CHARS}) — split it into smaller documents"
+        )
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         next_version = await conn.fetchval(

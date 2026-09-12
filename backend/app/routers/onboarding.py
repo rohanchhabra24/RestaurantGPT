@@ -1,10 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from app.auth import AuthContext, get_current_user
+from app.config import settings
 from app.db import get_pool
+from app.services.ip_rate_limit import limiter
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -16,13 +18,16 @@ async def me(ctx: AuthContext = Depends(get_current_user)):
 
 
 class CreateRestaurantIn(BaseModel):
-    name: str
-    aggregator_platform: str = "multi"
-    timezone: str = "Asia/Kolkata"
+    name: str = Field(min_length=1, max_length=200)
+    aggregator_platform: str = Field(default="multi", max_length=50)
+    timezone: str = Field(default="Asia/Kolkata", max_length=50)
 
 
 @router.post("/restaurant")
-async def create_restaurant(body: CreateRestaurantIn, ctx: AuthContext = Depends(get_current_user)):
+@limiter.limit(settings.ip_rate_limit_account_create)
+async def create_restaurant(
+    request: Request, body: CreateRestaurantIn, ctx: AuthContext = Depends(get_current_user)
+):
     if ctx.restaurant_id:
         raise HTTPException(400, "This account is already linked to a restaurant.")
 

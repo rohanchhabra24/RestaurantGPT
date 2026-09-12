@@ -2,13 +2,15 @@ import json
 import time
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 
 from app.auth import require_tenant
+from app.config import settings
 from app.db import get_pool
 from app.models import Citation, ConversationOut, MessageIn, MessageOut
 from app.services import rate_limit, semantic_cache
+from app.services.ip_rate_limit import limiter
 from app.services.pipeline import run_pipeline
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
@@ -66,7 +68,10 @@ async def get_messages(conversation_id: str, restaurant_id: str = Depends(requir
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageOut)
-async def post_message(conversation_id: str, body: MessageIn, restaurant_id: str = Depends(require_tenant)):
+@limiter.limit(settings.ip_rate_limit_ai)
+async def post_message(
+    request: Request, conversation_id: str, body: MessageIn, restaurant_id: str = Depends(require_tenant)
+):
     pool = await get_pool()
     conv_uuid = uuid.UUID(conversation_id)
     rid = uuid.UUID(restaurant_id)

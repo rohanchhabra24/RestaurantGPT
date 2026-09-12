@@ -20,11 +20,15 @@ valid token with no `restaurant_id` claim; `require_tenant` treats that as
 "needs onboarding," not an auth failure.
 """
 
+import logging
+
 import jwt
 from fastapi import Header, HTTPException
 from jwt import PyJWKClient
 
 from app.config import settings
+
+logger = logging.getLogger("auth")
 
 _jwks_client: PyJWKClient | None = None
 
@@ -53,9 +57,23 @@ def _decode(authorization: str | None) -> dict:
             signing_key.key,
             algorithms=["ES256"],
             audience="authenticated",
+            # Issuer check ties the token to *this* Supabase project, not just
+            # to "some key JWKS happened to match" — belt-and-suspenders on
+            # top of the key lookup itself already being project-scoped.
+            # require=[...] makes a token missing exp/sub fail closed rather
+            # than silently skipping a check that isn't present. PyJWT
+            # verifies exp (and rejects an expired token) by default whenever
+            # the claim is present.
+            issuer=f"{settings.supabase_url}/auth/v1",
+            options={"require": ["exp", "sub", "iss"]},
         )
     except jwt.PyJWTError as e:
-        raise HTTPException(401, f"Invalid token: {e}")
+        # Logged server-side with the specific reason (useful for spotting a
+        # credential-stuffing/token-replay pattern); the client only gets a
+        # generic message so a scripted attacker can't use error detail to
+        # narrow down which part of verification is failing.
+        logger.warning("JWT verification failed: %s", e)
+        raise HTTPException(401, "Invalid or expired token")
 
 
 async def get_current_user(authorization: str | None = Header(None)) -> AuthContext:

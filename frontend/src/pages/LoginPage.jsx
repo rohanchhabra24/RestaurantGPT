@@ -51,8 +51,25 @@ export default function LoginPage() {
         </p>
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input className="input" type="email" placeholder="you@restaurant.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+          <input
+            className="input"
+            type="email"
+            placeholder="you@restaurant.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder="Password (min 8 characters)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            required
+            minLength={8}
+          />
           {error && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{error}</div>}
           {signupMessage && <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{signupMessage}</div>}
           <button type="submit" className="btn btn-primary btn-block" disabled={busy}>

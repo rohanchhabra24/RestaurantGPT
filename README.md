@@ -166,7 +166,14 @@ Two independent layers, not just "the prompt won't let you":
 2. **Prompt-level:** `sql_engine.validate_sql` hard-requires the tenant's
    `restaurant_id` literal in every generated query, and that literal is
    injected by our own code — never something a user's question can steer
-   the model into changing.
+   the model into changing. This check requires the id to appear as a real
+   `restaurant_id = '<id>'` comparison (not just anywhere in the string),
+   rejects a negated form (`!=`/`<>`/`NOT ... =`) that would exclude the
+   tenant's own rows, bans `UNION`/`INTERSECT`/`EXCEPT`/`JOIN` outright
+   (the schema is one table, so none is ever legitimately needed, and each
+   is a way to smuggle in a second, unfiltered read of `orders`), and bans
+   SQL comments (`--`, `/* */`) so a filter can't be hidden from these
+   regex checks while an unfiltered query runs underneath.
 
 **What's still open, honestly:** the backend connects to Postgres with the
 Supabase **service-role key**, which bypasses RLS. The RLS policies from
@@ -179,6 +186,114 @@ bug that ever forgot a `WHERE restaurant_id = ...` would be caught by
 Postgres itself rather than relying on every call site getting it right.
 That's the next hardening step, not yet done — noting it plainly rather
 than implying RLS is doing work it isn't.
+
+## Production hardening checklist
+
+A pass through abuse protection, IDOR, auth, deployment config, and secrets
+handling. What's done in code vs. what's a one-time setting in the Supabase
+dashboard (this app has no server of its own to enforce those from):
+
+**Abuse protection (code, done):**
+- Every route sits behind a per-IP throttle (`slowapi`, `app/services/ip_rate_limit.py`,
+  wired in `main.py`) — 60/min by default, applied before auth is even
+  checked. Account creation (`POST /api/onboarding/restaurant`) and every
+  AI-generation route (chat messages, diagnostics scan, compensation sweep,
+  eval run/compare, document/order ingestion) carry a tighter per-IP limit
+  on top (`IP_RATE_LIMIT_ACCOUNT_CREATE`, `IP_RATE_LIMIT_AI`).
+- This is layered on top of, not instead of, the existing per-tenant
+  Postgres limiter (`rate_limit.py`) — the per-IP layer specifically closes
+  the gap where an attacker scripts fresh signups to get a new tenant quota
+  each time.
+- **Honest gap:** login and signup go straight from the frontend to
+  Supabase Auth's API (`supabase.auth.signInWithPassword`/`signUp` in
+  `authContext.jsx`) and never touch this backend, so this backend cannot
+  rate-limit them. That's Supabase's job — in the dashboard, enable
+  **Authentication → Rate Limits** and **Authentication → Attack Protection**
+  (CAPTCHA) if you expect public signups.
+
+**IDOR (code, done):** every route that takes a resource id from the URL
+(conversation, chunk, claim, card, trace) checks `restaurant_id` ownership
+before reading or mutating it — see "Privacy & tenant isolation" above for
+the full list and the text-to-SQL tenant-filter hardening.
+
+**Authentication (code, done):**
+- Password hashing, session issuance/expiry, and refresh-token rotation are
+  Supabase Auth's job, not this app's — we never see or store a raw
+  password (confirm in `authContext.jsx`: only the Supabase SDK ever touches
+  the `password` field).
+- `auth.py` verifies every token's signature against the project's live
+  JWKS (handles key rotation automatically), plus its expiry, subject, and
+  **issuer** (ties a token to this specific Supabase project, not just to
+  "a key that happened to match"). A verification failure logs the specific
+  reason server-side but returns a generic "Invalid or expired token" to
+  the client, so a scripted attacker can't use error detail to narrow down
+  which check is failing.
+- Frontend password field raised to `minLength=8` — client-side only, so it
+  needs a matching **Authentication → Policies → Minimum password length**
+  in the Supabase dashboard to actually be enforced.
+- **Manual dashboard steps still needed:** turn on **Confirm email** (the
+  signup flow already handles the "check your email" case, assuming it's
+  on), and confirm the password-reset link expiry under
+  **Authentication → Email Templates / Policies** is short (Supabase's
+  default is reasonable; just don't lengthen it).
+
+**Deployment (code, done):**
+- Every response carries security headers (`HSTS`, `X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, a locked-down
+  `Permissions-Policy`) via `app/middleware.py`.
+- `FORCE_HTTPS=true` enables an HTTPS redirect for deployments where this
+  process itself sees the real request scheme; left off by default since
+  most platform deployments already redirect at the load-balancer/proxy
+  layer, where this would misfire on the internal plain-HTTP hop.
+- The Postgres connection now requires TLS (`ssl="require"` in `db.py`)
+  rather than trusting the connection string alone to ask for it.
+- Every request is logged (method, path, status, client IP, latency) via
+  `AccessLogMiddleware`; auth failures, rate-limit hits, and 5xx errors are
+  logged at WARNING/ERROR specifically so they stand out in whatever log
+  aggregator the deployment points stdout at — this app doesn't ship its
+  own log storage.
+- `CORS_ALLOWED_ORIGINS` is now a real env var (defaults to the Vite dev
+  server) — set it to the deployed frontend's actual origin in production.
+- **Manual step still needed:** restrict direct public access to the
+  Postgres database itself — Supabase dashboard →
+  **Database → Network Restrictions** (allowlist only this backend's
+  egress IP(s), or rely on the pooler + a private network path if your
+  host supports one). Nothing in this app's code can enforce that; it's a
+  property of the database's own network config.
+
+**Secrets (verified clean):** grepped the tracked tree and the full git
+history for the project's real Supabase URL/keys and Anthropic key
+patterns — nothing committed. The frontend only ever reads
+`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (the public anon key, meant to
+be public); the service-role key and `ANTHROPIC_API_KEY` exist only in the
+backend's `.env` (gitignored) and are never sent to the frontend. Anything
+prefixed `VITE_` gets bundled into the shipped frontend JS by Vite, so
+that prefix is a hard line: only ever put genuinely public values behind it.
+
+**Input validation (code, done):**
+- Every request body is a Pydantic model, so type coercion happens before a
+  route body ever runs — this pass added explicit length bounds on top:
+  chat questions and eval-compare questions are capped at 2000 chars
+  (`MAX_QUESTION_LENGTH` in `models.py`), restaurant name/platform/timezone
+  at 200/50/50 chars (`onboarding.py`). Uncapped text fields were a real
+  gap — without a bound, a single request could blow up prompt size/cost in
+  a way per-request rate limiting alone doesn't catch.
+- File uploads (`/api/ingest/orders`, `/api/ingest/documents`) are capped at
+  10MB (`MAX_UPLOAD_BYTES`) — `UploadFile` doesn't enforce a size limit on
+  its own, so an unbounded upload was a memory/storage-cost DoS vector.
+  Order CSVs are additionally capped at 20,000 rows and policy document
+  text at 300,000 characters post-extraction, since row/char count doesn't
+  scale linearly with byte size and is what actually drives DB write volume
+  and embedding cost.
+- Malformed input now fails clearly instead of as a raw 500: an invalid
+  `effective_date`, a CSV missing expected columns or with non-numeric
+  amounts, or a non-UTF-8 plaintext upload all return a 400 with a specific
+  message (`ingest.py`, `ingestion.py`'s `IngestionError`).
+- Checked for the classic injection classes beyond the text-to-SQL surface
+  already covered above: no `subprocess`/`os.system`/`eval`/`exec` calls
+  anywhere in the backend (no command-injection surface to begin with), and
+  no `dangerouslySetInnerHTML` in the frontend (React escapes rendered text
+  by default, so LLM output and uploaded document text can't inject markup).
 
 ## Notes on scope
 

@@ -40,8 +40,16 @@ Rules:
 - Cap results at 200 rows with LIMIT unless the query is already an aggregate (COUNT/AVG/SUM).
 - Respond with ONLY the SQL query, no explanation, no markdown fence."""
 
+# `join`/`union`/`intersect`/`except` are banned outright rather than just
+# discouraged: the schema exposes exactly one table, so no legitimate query
+# ever needs any of them, and each is a known way to smuggle in an
+# unfiltered second read of `orders` (e.g. `... WHERE restaurant_id = 'X'
+# UNION SELECT ... FROM orders` still contains the tenant id as a substring
+# elsewhere in the query, which the old check alone would have let through).
+# pg_catalog/information_schema/pg_sleep close off metadata/DoS probing.
 FORBIDDEN = re.compile(
-    r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|attach|copy|create|call|do)\b",
+    r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|attach|copy|create|call|do|"
+    r"union|intersect|except|join|into|pg_sleep|pg_catalog|information_schema|pg_read_file)\b",
     re.IGNORECASE,
 )
 
@@ -56,10 +64,30 @@ def validate_sql(sql: str, restaurant_id: str) -> str:
         raise SQLValidationError("Generated query is not a SELECT statement")
     if ";" in stripped:
         raise SQLValidationError("Multiple statements are not allowed")
+    if "--" in stripped or "/*" in stripped:
+        # Comments are never needed in a generated query and can otherwise
+        # hide a fake tenant filter from the regex checks below (e.g.
+        # `WHERE 1=1 -- restaurant_id = '<real id>'`) while a stripped
+        # comment leaves an entirely unfiltered query underneath.
+        raise SQLValidationError("Comments are not allowed in generated SQL")
     if FORBIDDEN.search(stripped):
         raise SQLValidationError("Generated query contains a forbidden keyword")
-    if restaurant_id not in stripped:
+    if not re.search(r"\bfrom\s+orders\b", stripped, re.IGNORECASE):
+        raise SQLValidationError("Generated query must read from the orders table")
+
+    # Substring presence isn't enough on its own — it doesn't distinguish an
+    # actual filter from the id merely appearing (e.g. in a comment, or
+    # negated). Require it as a real equality comparison, and reject a
+    # negated form (!=, <>, NOT ... =) that would exclude the tenant's own
+    # rows and imply the rest of the WHERE clause is scoping to everyone else.
+    escaped_id = re.escape(restaurant_id)
+    if not re.search(rf"restaurant_id\s*=\s*'{escaped_id}'", stripped, re.IGNORECASE):
         raise SQLValidationError("Generated query is missing the tenant filter")
+    if re.search(rf"(!=|<>)\s*'{escaped_id}'", stripped, re.IGNORECASE) or re.search(
+        rf"\bnot\b[^=]{{0,20}}=\s*'{escaped_id}'", stripped, re.IGNORECASE
+    ):
+        raise SQLValidationError("Generated query negates the tenant filter")
+
     if not re.search(r"\blimit\b", stripped, re.IGNORECASE) and not re.search(
         r"\b(count|avg|sum|min|max)\s*\(", stripped, re.IGNORECASE
     ):

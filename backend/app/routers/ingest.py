@@ -1,14 +1,27 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 
 from app.auth import require_tenant
+from app.config import settings
 from app.db import get_pool
-from app.services import ingestion, policy_impact
+from app.services import ingestion, policy_impact, rate_limit
+from app.services.ip_rate_limit import limiter
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
+
+# Starlette's UploadFile doesn't cap size on its own — an unbounded upload
+# is both a storage-cost and memory-exhaustion vector (the whole file is
+# read into memory below). No legitimate order CSV or policy document for
+# a single restaurant needs to be anywhere near this large.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _check_upload_size(raw: bytes) -> None:
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"File too large — max {MAX_UPLOAD_BYTES // (1024 * 1024)}MB")
 
 
 @router.get("/sources")
@@ -83,32 +96,53 @@ async def remove_flagged_chunk(chunk_id: str, restaurant_id: str = Depends(requi
 
 
 @router.post("/orders")
-async def ingest_orders(file: UploadFile, restaurant_id: str = Depends(require_tenant)):
+@limiter.limit(settings.ip_rate_limit_ai)
+async def ingest_orders(request: Request, file: UploadFile, restaurant_id: str = Depends(require_tenant)):
+    await rate_limit.check_and_record(restaurant_id, "ingest_orders")
     raw = await file.read()
-    count = await ingestion.ingest_orders_csv(raw, restaurant_id)
+    _check_upload_size(raw)
+    try:
+        count = await ingestion.ingest_orders_csv(raw, restaurant_id)
+    except (KeyError, ValueError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"Malformed order CSV: {e}")
     return {"orders_ingested": count}
 
 
 @router.post("/documents")
+@limiter.limit(settings.ip_rate_limit_ai)
 async def ingest_document(
+    request: Request,
     file: UploadFile,
     doc_type: str = Form("sla"),
     effective_date: str = Form(...),
     restaurant_id: str = Depends(require_tenant),
 ):
+    await rate_limit.check_and_record(restaurant_id, "ingest_document")
+    try:
+        parsed_effective_date = date.fromisoformat(effective_date)
+    except ValueError:
+        raise HTTPException(400, "Invalid effective_date — expected YYYY-MM-DD")
+
     raw = await file.read()
+    _check_upload_size(raw)
     if file.filename and file.filename.lower().endswith(".pdf"):
         text = ingestion.extract_pdf_text(raw)
     else:
-        text = raw.decode("utf-8")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(400, "File must be UTF-8 text or a PDF")
 
-    result = await ingestion.ingest_policy_document(
-        text=text,
-        source_name=file.filename or "uploaded_document",
-        doc_type=doc_type,
-        effective_date=date.fromisoformat(effective_date),
-        restaurant_id=restaurant_id,
-    )
+    try:
+        result = await ingestion.ingest_policy_document(
+            text=text,
+            source_name=file.filename or "uploaded_document",
+            doc_type=doc_type,
+            effective_date=parsed_effective_date,
+            restaurant_id=restaurant_id,
+        )
+    except ingestion.IngestionError as e:
+        raise HTTPException(400, str(e))
 
     impact_report = None
     if doc_type in ("sla", "compensation"):

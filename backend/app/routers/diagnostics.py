@@ -1,12 +1,14 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 
 from app.auth import require_tenant
+from app.config import settings
 from app.db import get_pool
 from app.services import anomaly_scan, rate_limit
+from app.services.ip_rate_limit import limiter
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
@@ -19,7 +21,8 @@ def _serialize_card(row: dict) -> dict:
 
 
 @router.post("/scan")
-async def run_scan(restaurant_id: str = Depends(require_tenant)):
+@limiter.limit(settings.ip_rate_limit_ai)
+async def run_scan(request: Request, restaurant_id: str = Depends(require_tenant)):
     await rate_limit.check_and_record(restaurant_id, "anomaly_scan")
     cards = await anomaly_scan.run_scan(restaurant_id)
     return {"zones_scanned": True, "cards_created": len(cards), "cards": cards}

@@ -13,12 +13,14 @@ that actually get persisted do not — see compensation_rules.py for why.
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 
 from app.auth import require_tenant
+from app.config import settings
 from app.db import get_pool
 from app.services import compensation_rules, rate_limit
+from app.services.ip_rate_limit import limiter
 from app.services.pipeline import run_pipeline
 from app.services.retrieval_engine import hybrid_search
 
@@ -41,7 +43,8 @@ SWEEP_WINDOW_SQL = """
 
 
 @router.post("/sweep")
-async def run_sweep(restaurant_id: str = Depends(require_tenant)):
+@limiter.limit(settings.ip_rate_limit_ai)
+async def run_sweep(request: Request, restaurant_id: str = Depends(require_tenant)):
     await rate_limit.check_and_record(restaurant_id, "compensation_sweep")
     rid = uuid.UUID(restaurant_id)
     pool = await get_pool()

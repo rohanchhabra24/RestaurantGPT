@@ -1,9 +1,14 @@
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 Route = Literal["SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY"]
 GroundingVerdict = Literal["grounded", "ungrounded", "partial", "no_claims"]
+
+# A chat question has no legitimate reason to be this long — bounding it
+# keeps a single request from blowing up prompt size/cost (an abuse vector
+# rate limiting alone doesn't close, since it's still just "one request").
+MAX_QUESTION_LENGTH = 2000
 
 
 class Citation(BaseModel):
@@ -15,7 +20,7 @@ class Citation(BaseModel):
 
 
 class MessageIn(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
 
 
 class MessageOut(BaseModel):
