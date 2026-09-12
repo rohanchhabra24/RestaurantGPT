@@ -14,9 +14,10 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 # Starlette's UploadFile doesn't cap size on its own — an unbounded upload
 # is both a storage-cost and memory-exhaustion vector (the whole file is
-# read into memory below). No legitimate order CSV or policy document for
-# a single restaurant needs to be anywhere near this large.
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+# read into memory below). 25MB comfortably covers a multi-year order-history
+# backfill CSV (see MAX_ORDER_ROWS in ingestion.py) and any real policy PDF —
+# still far short of a size that would strain a single request.
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 def _check_upload_size(raw: bytes) -> None:

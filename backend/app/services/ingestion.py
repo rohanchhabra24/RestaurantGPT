@@ -19,8 +19,12 @@ CHUNK_OVERLAP = 150
 
 # Bounds on top of the router's raw-byte upload cap — these bound the actual
 # downstream cost (DB rows written / chunks embedded), which doesn't scale
-# linearly with file size (e.g. a 10MB file of very short rows/lines).
-MAX_ORDER_ROWS = 20_000
+# linearly with file size (e.g. a 25MB file of very short rows/lines).
+# 100k rows covers a multi-year order-history backfill for a single
+# restaurant in one file; a real SLA/compensation policy document is never
+# anywhere close to 300k characters (a 100+ page document), so that cap is
+# purely a cost backstop, not something a legitimate upload should ever hit.
+MAX_ORDER_ROWS = 100_000
 MAX_POLICY_TEXT_CHARS = 300_000
 
 
