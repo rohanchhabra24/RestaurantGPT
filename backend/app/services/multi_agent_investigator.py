@@ -24,11 +24,15 @@ LLM for prose.
 import uuid
 from dataclasses import dataclass, field
 
+from app.config import settings
 from app.db import get_pool
 from app.services.retrieval_engine import hybrid_search
 
-RECENT_WINDOW_DAYS = 7
-BASELINE_WINDOW_DAYS = 28  # the 28 days preceding the recent window
+# Configurable via settings (INVESTIGATOR_RECENT_WINDOW_DAYS /
+# INVESTIGATOR_BASELINE_WINDOW_DAYS) rather than fixed — anomaly_scan.py
+# reads these same two off this module.
+RECENT_WINDOW_DAYS = settings.investigator_recent_window_days
+BASELINE_WINDOW_DAYS = settings.investigator_baseline_window_days  # the days preceding the recent window
 
 DRIVER_SEARCH_QUERY = {
     "weather_delay": "weather force majeure delay compensation policy",

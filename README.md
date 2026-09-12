@@ -279,12 +279,13 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   gap — without a bound, a single request could blow up prompt size/cost in
   a way per-request rate limiting alone doesn't catch.
 - File uploads (`/api/ingest/orders`, `/api/ingest/documents`) are capped at
-  10MB (`MAX_UPLOAD_BYTES`) — `UploadFile` doesn't enforce a size limit on
+  25MB (`MAX_UPLOAD_BYTES`) — `UploadFile` doesn't enforce a size limit on
   its own, so an unbounded upload was a memory/storage-cost DoS vector.
-  Order CSVs are additionally capped at 20,000 rows and policy document
-  text at 300,000 characters post-extraction, since row/char count doesn't
-  scale linearly with byte size and is what actually drives DB write volume
-  and embedding cost.
+  Order CSVs are additionally capped at 100,000 rows (enough for a
+  multi-year backfill in one file) and policy document text at 300,000
+  characters post-extraction, since row/char count doesn't scale linearly
+  with byte size and is what actually drives DB write volume and
+  embedding cost.
 - Malformed input now fails clearly instead of as a raw 500: an invalid
   `effective_date`, a CSV missing expected columns or with non-numeric
   amounts, or a non-UTF-8 plaintext upload all return a 400 with a specific
@@ -294,6 +295,48 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   anywhere in the backend (no command-injection surface to begin with), and
   no `dangerouslySetInnerHTML` in the frontend (React escapes rendered text
   by default, so LLM output and uploaded document text can't inject markup).
+
+## Testing & CI
+
+- `backend/tests/` — pytest unit tests for the pure-logic pieces that don't
+  need a live database or Anthropic call: `sql_engine.validate_sql`
+  (every exploit case considered during hardening — UNION bypass, negated
+  filter, comment-hidden fake filter, etc. — is a regression test now, not
+  just a one-off manual check), `compensation_rules.evaluate_order` (the
+  money-affecting logic), and `pricing.estimate_cost_usd`. Run with
+  `cd backend && pip install -r requirements-dev.txt && pytest tests/ -v`.
+- `.github/workflows/ci.yml` — runs that pytest suite plus a backend
+  compile-check and a frontend production build on every PR. The golden-set
+  eval (`backend/eval/run_eval.py`) is wired in as a separate job but stays
+  off until a repo variable `EVAL_CI_ENABLED=true` is set and
+  `SUPABASE_DB_URL`/`SUPABASE_URL`/`ANTHROPIC_API_KEY` are added as repo
+  secrets — it needs a real (ideally a dedicated test) Supabase project and
+  spends real Anthropic tokens on every run, so it shouldn't silently start
+  charging a card or hitting a production database the moment this file
+  lands.
+- **Still missing, honestly:** integration tests that actually exercise
+  the API routes against a database (would need a disposable test Postgres
+  in CI, e.g. a service container running the migrations), and any
+  frontend test coverage at all (no `vitest`/`jest` set up). Neither was in
+  scope for this pass — noting the gap rather than implying it's covered.
+
+**Business-tuning constants are now configurable, not hardcoded:**
+`anomaly_scan.py`'s deviation threshold/minimum sample size and
+`multi_agent_investigator.py`'s trend/baseline window sizes read from
+`Settings` (`ANOMALY_DELTA_THRESHOLD_PCT`, `ANOMALY_MIN_SAMPLE_SIZE`,
+`INVESTIGATOR_RECENT_WINDOW_DAYS`, `INVESTIGATOR_BASELINE_WINDOW_DAYS` —
+see `.env.example`) so they can be tuned per deployment without a
+redeploy. `demo_restaurant_id` is intentionally still a fixed constant —
+it's never trusted by any API route (`restaurant_id` always comes from the
+JWT); it exists only so `seed.py` and the CI eval harness
+(`backend/eval/run_eval.py`, which has no authenticated caller to run
+against) have a restaurant to point at.
+
+**SPA routing on static hosts:** the frontend uses `react-router-dom`'s
+`BrowserRouter`, which needs the host to serve `index.html` for every
+path or a page refresh on any non-root route 404s. `frontend/vercel.json`
+and `frontend/public/_redirects` cover Vercel and Netlify respectively;
+other static hosts need the equivalent rewrite rule.
 
 ## Notes on scope
 

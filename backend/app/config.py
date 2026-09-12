@@ -49,6 +49,19 @@ class Settings(BaseSettings):
     # plain-HTTP hop. See app/main.py.
     force_https: bool = False
 
+    # Anomaly-scan sensitivity (anomaly_scan.py) — how big a deviation
+    # counts as worth a diagnosis card, and the minimum sample size before
+    # trusting an average at all. Configurable so this can be tuned per
+    # deployment without a code change/redeploy.
+    anomaly_delta_threshold_pct: float = 15.0
+    anomaly_min_sample_size: int = 3
+
+    # Multi-agent investigator's trend windows (multi_agent_investigator.py,
+    # also used by anomaly_scan.py) — how many recent days count as "now"
+    # vs. how many preceding days count as the baseline to compare against.
+    investigator_recent_window_days: int = 7
+    investigator_baseline_window_days: int = 28
+
     class Config:
         env_file = ".env"
 

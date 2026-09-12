@@ -16,11 +16,12 @@ build's scope, not a claim to statistical rigor it doesn't have.
 import json
 import uuid
 
+from app.config import settings
 from app.db import get_pool
 from app.services import grounding, multi_agent_investigator, synthesis
 
-DELTA_THRESHOLD_PCT = 15.0
-MIN_SAMPLE_SIZE = 3
+DELTA_THRESHOLD_PCT = settings.anomaly_delta_threshold_pct
+MIN_SAMPLE_SIZE = settings.anomaly_min_sample_size
 
 
 async def _list_zones_with_deviation(restaurant_id: str) -> list[dict]:
