@@ -1,0 +1,256 @@
+import { useEffect, useState } from "react";
+import CountUp from "../components/CountUp.jsx";
+import Icon from "../components/Icon.jsx";
+import { api } from "../api.js";
+
+const TABS = [
+  { key: "all", label: "All Orders" },
+  { key: "cancelled", label: "Cancelled" },
+  { key: "eligible", label: "Eligible" },
+];
+
+function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }) {
+  return (
+    <div className="card elev-sm" style={{ padding: 16, gap: 8 }}>
+      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {icon && <Icon name={icon} size={11} />}
+        {label}
+      </div>
+      <div style={{ font: "600 24px var(--font-body)" }}>
+        {prefix}<CountUp value={value ?? 0} suffix={suffix} decimals={decimals} />
+      </div>
+    </div>
+  );
+}
+
+function statusTag(order) {
+  if (order.claim) {
+    return (
+      <span className={`tag ${order.claim.status === "submitted" || order.claim.status === "resolved" ? "tag-accent" : "tag-outline"}`} style={{ gap: 4 }}>
+        <Icon name="check" size={10} />
+        {order.claim.status === "drafted" ? "Claim drafted" : order.claim.status === "submitted" ? "Claim submitted" : "Claim resolved"}
+      </span>
+    );
+  }
+  if (order.eligible) {
+    return (
+      <span className="tag tag-accent" style={{ gap: 4 }}>
+        <Icon name="check" size={10} />
+        Eligible
+      </span>
+    );
+  }
+  if (order.is_cancelled) {
+    return (
+      <span className="tag tag-neutral" style={{ gap: 4, opacity: 0.75 }}>
+        <Icon name="x" size={10} />
+        Not eligible
+      </span>
+    );
+  }
+  return <span className="tag tag-neutral">{order.status}</span>;
+}
+
+function OrderRow({ order, selected, onClick }) {
+  return (
+    <div
+      className="row-hover"
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+        borderBottom: "1px solid var(--color-divider)", cursor: "pointer",
+        background: selected ? "var(--color-accent-900)" : "transparent",
+      }}
+    >
+      <span
+        style={{
+          width: 30, height: 30, borderRadius: "50%", flex: "none",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          background: selected ? "var(--color-accent-800)" : "var(--color-surface-raised)",
+        }}
+      >
+        <Icon name="route" size={14} style={{ color: selected ? "var(--color-accent-200)" : "var(--color-neutral-400)" }} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5 }}>
+          <span className="mono" style={{ fontWeight: 600 }}>#{order.aggregator_order_id}</span>
+        </div>
+        <div className="dim" style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
+          {order.zone} · {order.platform}
+          {order.weather_flag && <Icon name="rain" size={11} />}
+        </div>
+      </div>
+      {statusTag(order)}
+      <div className="mono" style={{ fontSize: 13, width: 64, textAlign: "right", flex: "none" }}>
+        {order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}
+      </div>
+    </div>
+  );
+}
+
+function delayMinutes(order) {
+  if (order.delivery_time_seconds == null || order.sla_target_seconds == null) return null;
+  return Math.round((order.delivery_time_seconds - order.sla_target_seconds) / 60);
+}
+
+function OrderDetail({ order, onSweep, sweeping }) {
+  if (!order) {
+    return (
+      <div className="card elev-sm" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <div className="dim" style={{ fontSize: 13 }}>Select an order to see its detail.</div>
+      </div>
+    );
+  }
+
+  const delay = delayMinutes(order);
+
+  return (
+    <div className="card elev-sm" style={{ padding: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-divider)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flex: "none" }}>
+        <div>
+          <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-500)", marginBottom: 4 }}>Order detail</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="mono" style={{ font: "600 20px var(--font-body)" }}>#{order.aggregator_order_id}</span>
+            {statusTag(order)}
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Platform</div>
+          <span className="tag tag-neutral mono">{order.platform}</span>
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 24px 0", display: "flex", gap: 12, flex: "none" }}>
+        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Order value</div>
+          <div style={{ font: "600 18px var(--font-body)" }}>{order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}</div>
+        </div>
+        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Delay vs. SLA</div>
+          <div style={{ font: "600 18px var(--font-body)" }}>{delay != null ? `${delay >= 0 ? "+" : ""}${delay} min` : "—"}</div>
+        </div>
+        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{order.claim ? "Claim amount" : "Est. compensation"}</div>
+          <div style={{ font: "600 18px var(--font-body)", color: "var(--color-accent)" }}>
+            {order.claim ? `₹${order.claim.computed_amount.toFixed(0)}` : order.eligible_amount != null ? `₹${order.eligible_amount.toFixed(0)}` : "—"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="dim" style={{ fontSize: 12.5 }}>
+          <strong style={{ color: "var(--color-text)", fontWeight: 500 }}>Zone:</strong> {order.zone} &nbsp;·&nbsp;
+          <strong style={{ color: "var(--color-text)", fontWeight: 500 }}>Placed:</strong>{" "}
+          {order.placed_at ? new Date(order.placed_at).toLocaleString() : "—"}
+        </div>
+        {order.cancellation_reason && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+            {order.weather_flag && <Icon name="rain" size={13} style={{ color: "var(--color-accent)", flex: "none" }} />}
+            Cancellation reason: <span className="mono">{order.cancellation_reason}</span>
+          </div>
+        )}
+        {order.is_cancelled && (
+          <>
+            <div className="hr" />
+            <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>{order.eligibility_reason}</div>
+          </>
+        )}
+      </div>
+
+      {order.eligible && !order.claim && (
+        <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-divider)", flex: "none" }}>
+          <button type="button" className="btn btn-primary btn-block" onClick={onSweep} disabled={sweeping}>
+            {sweeping ? "Running sweep…" : "Run compensation sweep to draft this claim"}
+          </button>
+          <div className="dim" style={{ fontSize: 11, marginTop: 6 }}>
+            The sweep drafts claims for every eligible order from the last 2 days, not just this one.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [kpis, setKpis] = useState(null);
+  const [accuracy, setAccuracy] = useState(null);
+  const [tab, setTab] = useState("eligible");
+  const [orders, setOrders] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [sweeping, setSweeping] = useState(false);
+
+  useEffect(() => {
+    api.getOperationsSummary().then(setKpis).catch(() => {});
+    api.getInsightsSummary().then((d) => setAccuracy(d.grounded_rate)).catch(() => {});
+  }, []);
+
+  function refreshOrders() {
+    setOrders(null);
+    api.listOrders(tab).then((rows) => {
+      setOrders(rows);
+      setSelectedId((prev) => (rows.some((o) => o.id === prev) ? prev : rows[0]?.id ?? null));
+    }).catch(() => setOrders([]));
+  }
+
+  useEffect(refreshOrders, [tab]);
+
+  async function runSweep() {
+    setSweeping(true);
+    try {
+      await api.runCompensationSweep();
+      refreshOrders();
+      api.getOperationsSummary().then(setKpis).catch(() => {});
+    } finally {
+      setSweeping(false);
+    }
+  }
+
+  const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", padding: "24px 32px 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: "0 0 2px" }}>Operations</h2>
+          <p className="dim" style={{ margin: 0, fontSize: 13 }}>Live view across orders, SLA compliance and compensation.</p>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, flex: "none" }}>
+        <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
+        <StatTile label="Avg delivery delay" value={kpis?.avg_delivery_delay_seconds != null ? kpis.avg_delivery_delay_seconds / 60 : null} decimals={1} suffix=" min" icon="clock" />
+        <StatTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} decimals={1} suffix="%" icon="x" />
+        <StatTile label="Orders today" value={kpis?.orders_today} icon="db" />
+        <StatTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
+        <StatTile label="Query accuracy" value={accuracy != null ? accuracy * 100 : null} decimals={1} suffix="%" icon="check" />
+      </div>
+
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
+        <div className="card elev-sm" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none" }}>
+            <div className="seg" role="radiogroup" aria-label="Order filter">
+              {TABS.map((t) => (
+                <label key={t.key} className="seg-opt" style={{ fontSize: 12.5 }}>
+                  <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => setTab(t.key)} />
+                  {t.label}
+                  {orders && tab === t.key && <span style={{ opacity: 0.55, marginLeft: 4 }}>{orders.length}</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ flex: 1, overflow: "auto" }}>
+            {orders === null && <div className="dim" style={{ padding: 16, fontSize: 13 }}>Loading…</div>}
+            {orders && orders.length === 0 && (
+              <div className="dim" style={{ padding: 16, fontSize: 13 }}>No orders in this view yet.</div>
+            )}
+            {orders && orders.map((o) => (
+              <OrderRow key={o.id} order={o} selected={o.id === selectedId} onClick={() => setSelectedId(o.id)} />
+            ))}
+          </div>
+        </div>
+
+        <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} />
+      </div>
+    </div>
+  );
+}

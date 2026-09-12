@@ -82,3 +82,55 @@ async def summary(restaurant_id: str = Depends(require_tenant)):
             for r in trend_rows
         ],
     }
+
+
+OPERATIONS_TREND_DAYS = 7
+
+
+@router.get("/operations")
+async def operations(restaurant_id: str = Depends(require_tenant)):
+    """Order-level operational KPIs for the Dashboard page — deliberately
+    separate from /summary, which is about the AI pipeline's own behavior
+    (query_traces), not the restaurant's actual order data. Keeping them
+    apart avoids one endpoint answering two unrelated questions."""
+    pool = await get_pool()
+    rid = uuid.UUID(restaurant_id)
+
+    async with pool.acquire() as conn:
+        today = await conn.fetchrow(
+            """select count(*) as orders_today,
+                      count(*) filter (
+                        where delivery_time_seconds is not null and sla_target_seconds is not null
+                          and delivery_time_seconds > sla_target_seconds
+                      ) as sla_breaches_today
+               from orders
+               where restaurant_id = $1 and placed_at >= date_trunc('day', now())""",
+            rid,
+        )
+        trend = await conn.fetchrow(
+            f"""select count(*) as total,
+                       count(*) filter (where is_cancelled) as cancelled,
+                       avg(delivery_time_seconds - sla_target_seconds) filter (
+                         where delivery_time_seconds is not null and sla_target_seconds is not null
+                       ) as avg_delay_seconds
+                from orders
+                where restaurant_id = $1 and placed_at >= now() - interval '{OPERATIONS_TREND_DAYS} days'""",
+            rid,
+        )
+        # Sum of every drafted/submitted/resolved claim — "identified", not
+        # "recovered": nothing in this build confirms a claim was actually
+        # paid out, so the KPI is worded to match what's actually verified.
+        compensation_identified = await conn.fetchval(
+            "select coalesce(sum(computed_amount), 0) from compensation_claims where restaurant_id = $1",
+            rid,
+        )
+
+    trend_total = trend["total"] or 0
+    return {
+        "window_days": OPERATIONS_TREND_DAYS,
+        "orders_today": today["orders_today"],
+        "sla_breaches_today": today["sla_breaches_today"],
+        "avg_delivery_delay_seconds": round(float(trend["avg_delay_seconds"]), 0) if trend["avg_delay_seconds"] is not None else None,
+        "cancellation_rate_pct": round(trend["cancelled"] / trend_total * 100, 1) if trend_total else 0.0,
+        "compensation_identified_total": float(compensation_identified),
+    }

@@ -11,7 +11,7 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from app.config import settings
 from app.db import close_pool, get_pool
 from app.middleware import AccessLogMiddleware, SecurityHeadersMiddleware
-from app.routers import compensation, conversations, diagnostics, eval, ingest, insights, onboarding, traces
+from app.routers import compensation, conversations, diagnostics, eval, ingest, insights, onboarding, orders, traces
 from app.services.ip_rate_limit import limiter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -56,6 +56,7 @@ app.include_router(compensation.router)
 app.include_router(diagnostics.router)
 app.include_router(insights.router)
 app.include_router(onboarding.router)
+app.include_router(orders.router)
 
 
 @app.get("/api/health")

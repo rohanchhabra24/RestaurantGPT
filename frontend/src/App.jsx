@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import NavBar from "./components/NavBar.jsx";
 import ChatPage from "./pages/ChatPage.jsx";
+import DashboardPage from "./pages/DashboardPage.jsx";
 import DataSourcesPage from "./pages/DataSourcesPage.jsx";
 import EvalPage from "./pages/EvalPage.jsx";
 import TracesPage from "./pages/TracesPage.jsx";
@@ -20,6 +21,7 @@ function AuthedApp() {
         <NavBar />
         <Routes>
           <Route path="/" element={<ChatPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/sources" element={<DataSourcesPage />} />
           <Route path="/traces" element={<TracesPage />} />
           <Route path="/diagnoses" element={<DiagnosesPage />} />

@@ -67,6 +67,9 @@ export const api = {
   getTrace: (traceId) => request(`/traces/${traceId}`),
 
   getInsightsSummary: () => request("/insights/summary"),
+  getOperationsSummary: () => request("/insights/operations"),
+
+  listOrders: (filter = "all", limit = 100) => request(`/orders?filter=${filter}&limit=${limit}`),
 
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),

@@ -20,6 +20,7 @@ export default function NavBar() {
         RestaurantGPT
       </span>
 
+      <NavLink to="/dashboard">Dashboard</NavLink>
       <NavLink to="/" end>Chat</NavLink>
       <NavLink to="/sources">Data Sources</NavLink>
       <NavLink to="/diagnoses">Diagnoses</NavLink>
