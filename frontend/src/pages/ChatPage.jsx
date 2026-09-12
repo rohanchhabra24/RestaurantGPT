@@ -103,40 +103,59 @@ export default function ChatPage() {
   const recoverableCount = compensation?.drafted_claims?.length ?? 0;
   const recoverableTotal = compensation?.total_recoverable ?? 0;
 
+  const todayKey = new Date().toDateString();
+  const todaysConversations = conversations.filter((c) => new Date(c.created_at).toDateString() === todayKey);
+  const earlierConversations = conversations.filter((c) => new Date(c.created_at).toDateString() !== todayKey);
+
+  function renderConvRow(c) {
+    return (
+      <div key={c.id} className="conv-row" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <a
+          href="#"
+          className="row-hover"
+          onClick={(e) => { e.preventDefault(); openConversation(c.id); }}
+          style={{
+            flex: 1, minWidth: 0,
+            display: "flex", gap: 8, alignItems: "flex-start", padding: 8, borderRadius: "var(--radius-md)",
+            textDecoration: "none", fontSize: 13, lineHeight: 1.35,
+            color: c.id === activeId ? "var(--color-accent-100)" : "var(--color-text)",
+            background: c.id === activeId ? "var(--color-accent-900)" : "transparent",
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || "Untitled query"}</span>
+        </a>
+        <button
+          type="button"
+          className="conv-delete btn btn-ghost btn-icon"
+          style={{ width: 26, height: 26, flex: "none" }}
+          aria-label="Delete query"
+          onClick={(e) => { e.preventDefault(); deleteConversation(c.id); }}
+        >
+          <Icon name="x" size={12} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
       <div style={{ width: 240, flex: "none", borderRight: "1px solid var(--color-divider)", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4, overflow: "auto" }}>
         <button type="button" className="btn btn-secondary btn-block" style={{ justifyContent: "flex-start", marginBottom: 10 }} onClick={startNewConversation}>
           <Icon name="plus" size={14} />New query
         </button>
-        {conversations.map((c) => (
-          <div key={c.id} className="conv-row" style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <a
-              href="#"
-              className="row-hover"
-              onClick={(e) => { e.preventDefault(); openConversation(c.id); }}
-              style={{
-                flex: 1, minWidth: 0,
-                display: "flex", gap: 8, alignItems: "flex-start", padding: 8, borderRadius: "var(--radius-md)",
-                textDecoration: "none", fontSize: 13, lineHeight: 1.35,
-                color: c.id === activeId ? "var(--color-accent-100)" : "var(--color-text)",
-                background: c.id === activeId ? "var(--color-accent-900)" : "transparent",
-              }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || "Untitled query"}</span>
-            </a>
-            <button
-              type="button"
-              className="conv-delete btn btn-ghost btn-icon"
-              style={{ width: 26, height: 26, flex: "none" }}
-              aria-label="Delete query"
-              onClick={(e) => { e.preventDefault(); deleteConversation(c.id); }}
-            >
-              <Icon name="x" size={12} />
-            </button>
-          </div>
-        ))}
+        {todaysConversations.length > 0 && (
+          <>
+            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Today</div>
+            {todaysConversations.map(renderConvRow)}
+          </>
+        )}
+        {earlierConversations.length > 0 && (
+          <>
+            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Earlier</div>
+            {earlierConversations.map(renderConvRow)}
+          </>
+        )}
         {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries yet — ask something to get started.</div>}
       </div>
 

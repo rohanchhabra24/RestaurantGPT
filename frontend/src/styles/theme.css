@@ -18,11 +18,11 @@
   --color-neutral-800: #1b1f2c;
   --color-neutral-900: #0e1018;
 
-  --color-accent: #4fd1e8;
-  --color-accent-100: #d3f6fb;
-  --color-accent-200: #a6ecf5;
-  --color-accent-800: #164451;
-  --color-accent-900: #0e2c35;
+  --color-accent: #9184d9;
+  --color-accent-100: #efedf9;
+  --color-accent-200: #cec8ee;
+  --color-accent-800: #2e2a45;
+  --color-accent-900: #1e1b2d;
 
   --color-danger: #f26d6d;
   --color-danger-bg: #2a1414;
@@ -148,7 +148,7 @@ a { color: inherit; }
 .btn:active:not(:disabled) { transform: scale(.97); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-.btn-primary { background: var(--color-accent); color: #05171c; }
+.btn-primary { background: var(--color-accent); color: #17121f; }
 .btn-primary:hover:not(:disabled) { background: var(--color-accent-200); }
 
 .btn-secondary { background: var(--color-surface-raised); color: var(--color-text); border-color: var(--color-divider); }
