@@ -3,12 +3,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     supabase_db_url: str
-    supabase_url: str = ""
+    # Required (not just for the admin client) — auth.py derives the JWKS
+    # verification endpoint from this: {supabase_url}/auth/v1/.well-known/jwks.json
+    supabase_url: str
     supabase_service_key: str = ""
-    # Settings -> API -> JWT Settings in the Supabase dashboard (the legacy
-    # shared HS256 secret). If a project has migrated to asymmetric signing
-    # keys, auth.py's verification needs to switch to JWKS instead.
-    supabase_jwt_secret: str = ""
 
     anthropic_api_key: str
     router_model: str = "claude-haiku-4-5"

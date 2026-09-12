@@ -8,4 +8,4 @@ sentence-transformers==3.1.1
 python-multipart==0.0.9
 python-dotenv==1.0.1
 pypdf==4.3.1
-pyjwt==2.9.0
+pyjwt[crypto]==2.9.0
