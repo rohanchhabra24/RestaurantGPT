@@ -1,0 +1,6 @@
+/* Trial: Tailwind for the landing page only. Preflight is disabled in
+   tailwind.config.js, so @tailwind base contributes nothing global here —
+   this file only ever emits utility classes an element explicitly uses. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

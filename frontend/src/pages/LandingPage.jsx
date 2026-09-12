@@ -1,5 +1,14 @@
 import { useNavigate } from "react-router-dom";
+import { Button } from "../components/ui/button.jsx";
+import { Card } from "../components/ui/card.jsx";
+import { Badge } from "../components/ui/badge.jsx";
 import Icon from "../components/Icon.jsx";
+
+// Trial: this page is rebuilt on Tailwind + shadcn-style components
+// (src/components/ui/) instead of the hand-rolled theme.css classes the
+// rest of the app uses — see tailwind.config.js for how the same color
+// tokens get bridged in, and main.jsx/tailwind.config.js for why this is
+// safe to load globally without affecting any other page (preflight off).
 
 const INTEGRATIONS = ["Swiggy", "Zomato", "Petpooja", "Dunzo"];
 
@@ -16,125 +25,120 @@ export default function LandingPage() {
 
   return (
     <div
+      className="min-h-screen text-foreground font-sans"
       style={{
-        minHeight: "100vh",
         background:
           "radial-gradient(1100px 640px at 84% -140px, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), " +
           "radial-gradient(1000px 700px at -8% 100%, color-mix(in srgb, black 28%, transparent), transparent 55%), var(--color-bg)",
-        color: "var(--color-text)",
-        fontFamily: "var(--font-body)",
       }}
     >
-      <nav style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px clamp(20px, 5vw, 72px)" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8, marginRight: "auto", font: "500 18px var(--font-heading)" }}>
-          <span style={{ width: 24, height: 24, borderRadius: 6, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-            <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />
+      <nav className="flex items-center gap-4 px-5 py-5 sm:px-10 lg:px-[72px]">
+        <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
+          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-md bg-accent">
+            <Icon name="route" size={14} className="text-accent-foreground" />
           </span>
           RestaurantGPT
         </span>
-        <button type="button" className="btn btn-primary" onClick={getStarted}>Get started</button>
+        <Button onClick={getStarted}>Get started</Button>
       </nav>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 clamp(20px, 5vw, 72px) 56px" }}>
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 52, alignItems: "center", padding: "48px 0 60px" }}>
-          <div style={{ display: "flex", flexDirection: "column", maxWidth: 560 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <span style={{ width: 32, height: 1, background: "var(--color-accent)", flex: "none" }} />
-              <span style={{ font: "600 12px var(--font-heading)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-accent)" }}>
+      <div className="mx-auto max-w-[1200px] px-5 pb-14 sm:px-10 lg:px-[72px]">
+        <section className="grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(400px,1fr))]">
+          <div className="flex max-w-[560px] flex-col">
+            <div className="mb-5 flex items-center gap-2.5">
+              <span className="h-px w-8 flex-none bg-primary" />
+              <span className="font-heading text-xs font-semibold uppercase tracking-[.08em] text-primary">
                 Operations intelligence for restaurants
               </span>
             </div>
-            <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: "clamp(34px, 4.4vw, 54px)", lineHeight: 1.12, letterSpacing: "-0.015em", margin: 0 }}>
-              <span style={{ display: "block" }}>Every late order has a reason.</span>
-              <span style={{ display: "block" }}>Now you can prove it.</span>
+            <h1 className="m-0 font-heading text-[clamp(34px,4.4vw,54px)] font-medium leading-[1.12] tracking-[-0.015em]">
+              <span className="block">Every late order has a reason.</span>
+              <span className="block">Now you can prove it.</span>
             </h1>
-            <p style={{ fontSize: 16, lineHeight: 1.6, color: "color-mix(in srgb, var(--color-text) 78%, transparent)", margin: "20px 0 0", maxWidth: "52ch" }}>
+            <p className="mt-5 max-w-[52ch] text-base leading-relaxed text-[color-mix(in_srgb,var(--color-text)_78%,transparent)]">
               RestaurantGPT reads your order data and delivery policies together. Ask what happened, and get an answer
               that cites the order ID or policy clause behind it — not a guess.
             </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-              <button type="button" className="btn btn-primary" onClick={getStarted}>Get started</button>
-              <button type="button" className="btn btn-ghost" onClick={scrollToCta}>Book a demo</button>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button onClick={getStarted}>Get started</Button>
+              <Button variant="ghost" onClick={scrollToCta}>Book a demo</Button>
             </div>
           </div>
 
-          <div style={{ position: "relative", minWidth: 340 }}>
+          <div className="relative min-w-[340px]">
             <div
-              style={{
-                position: "absolute", inset: -36, borderRadius: 24,
-                background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)",
-                filter: "blur(28px)", opacity: 0.55, animation: "rgpt-glow 6s ease-in-out infinite", pointerEvents: "none",
-              }}
+              className="pointer-events-none absolute -inset-9 rounded-3xl opacity-55 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
+              style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}
             />
-            <div style={{ position: "relative", background: "var(--color-surface)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: "20px 20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                  <Icon name="route" size={11} style={{ color: "var(--color-accent-200)" }} />
+            <Card className="relative flex flex-col gap-3.5 p-5 pb-6">
+              <div className="flex items-center gap-2">
+                <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px] bg-accent">
+                  <Icon name="route" size={11} className="text-accent-foreground" />
                 </span>
-                <span style={{ font: "500 13px var(--font-heading)" }}>RestaurantGPT</span>
-                <span className="tag tag-accent" style={{ gap: 5, marginLeft: "auto" }}>
-                  <Icon name="check" size={10} style={{ animation: "rgpt-pulse 2.4s ease-in-out infinite" }} />
+                <span className="font-heading text-sm font-medium">RestaurantGPT</span>
+                <Badge className="ml-auto">
+                  <Icon name="check" size={10} className="[animation:rgpt-pulse_2.4s_ease-in-out_infinite]" />
                   Live
-                </span>
+                </Badge>
               </div>
-              <div className="hr" style={{ margin: 0 }} />
-              <div style={{ alignSelf: "flex-end", maxWidth: "96%", background: "var(--color-neutral-800)", borderRadius: "12px 12px 2px 12px", padding: "10px 14px", animation: "rgpt-bubble 9s ease-in-out infinite" }}>
-                <span style={{ display: "inline-block", overflow: "hidden", whiteSpace: "nowrap", verticalAlign: "bottom", fontSize: 14, animation: "rgpt-type 9s steps(47) infinite" }}>
+              <div className="h-px bg-border" />
+              <div className="self-end max-w-[96%] rounded-[12px_12px_2px_12px] bg-[var(--color-neutral-800)] px-3.5 py-2.5 [animation:rgpt-bubble_9s_ease-in-out_infinite]">
+                <span className="inline-block overflow-hidden whitespace-nowrap align-bottom text-sm [animation:rgpt-type_9s_steps(47)_infinite]">
                   Which Zone 3 cancellations qualify for refunds?
                 </span>
-                <span style={{ display: "inline-block", width: 2, height: 14, background: "var(--color-text)", marginLeft: 2, verticalAlign: "middle", animation: "rgpt-caret .8s steps(1) infinite" }} />
+                <span className="ml-0.5 inline-block h-3.5 w-0.5 align-middle bg-foreground [animation:rgpt-caret_.8s_steps(1)_infinite]" />
               </div>
-              <div className="card elev-sm" style={{ alignSelf: "flex-start", maxWidth: "96%", animation: "rgpt-answer 9s ease-in-out infinite" }}>
-                <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Card className="self-start max-w-[96%] p-4 shadow-md [animation:rgpt-answer_9s_ease-in-out_infinite]">
+                <div className="flex items-center gap-1.5 text-xs uppercase tracking-[.06em] text-muted-foreground">
                   <Icon name="check" size={11} />Verified
                 </div>
-                <p className="card-body" style={{ margin: 0 }}>6 orders qualify — ₹2,730 total, delayed past SLA due to rain.</p>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
-                  <span className="tag tag-neutral mono">Order #4021</span>
-                  <span className="tag tag-neutral mono">Policy §4.2</span>
+                <p className="m-0 mt-1.5 text-[12.5px] text-muted-foreground">
+                  6 orders qualify — ₹2,730 total, delayed past SLA due to rain.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className="font-mono">Order #4021</Badge>
+                  <Badge variant="outline" className="font-mono">Policy §4.2</Badge>
                 </div>
-              </div>
-            </div>
+              </Card>
+            </Card>
           </div>
         </section>
 
-        <section style={{ display: "flex", flexDirection: "column", gap: 20, padding: "8px 0 36px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 32, height: 1, background: "var(--color-accent)", flex: "none" }} />
-            <span style={{ font: "600 12px var(--font-heading)", letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>
+        <section className="flex flex-col gap-5 py-2 pb-9">
+          <div className="flex items-center gap-2.5">
+            <span className="h-px w-8 flex-none bg-primary" />
+            <span className="font-heading text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-neutral-500)]">
               Plugs into what you already run
             </span>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 40, alignItems: "center" }}>
+          <div className="flex flex-wrap items-center gap-10">
             {INTEGRATIONS.map((name, i) => (
               <span
                 key={name}
-                style={{
-                  font: "600 20px var(--font-heading)", color: "var(--color-neutral-300)",
-                  animation: "rgpt-fadeup .6s ease-out both", animationDelay: `${0.05 + i * 0.07}s`,
-                }}
+                className="font-heading text-xl font-semibold text-[var(--color-neutral-300)] [animation:rgpt-fadeup_.6s_ease-out_both]"
+                style={{ animationDelay: `${0.05 + i * 0.07}s` }}
               >
                 {name}
               </span>
             ))}
           </div>
         </section>
-        <div className="hr" style={{ margin: "0 0 36px" }} />
+        <div className="mb-9 h-px bg-border" />
 
-        <section id="get-started" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 640, paddingBottom: 8, scrollMarginTop: 40 }}>
-          <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 30, letterSpacing: "-0.01em", margin: 0 }}>
+        <section id="get-started" className="flex max-w-[640px] scroll-mt-10 flex-col gap-2.5 pb-2">
+          <h2 className="m-0 font-heading text-3xl font-medium tracking-[-0.01em]">
             Stop guessing why orders go wrong.
           </h2>
-          <p style={{ fontSize: 15.5, lineHeight: 1.6, color: "color-mix(in srgb, var(--color-text) 78%, transparent)", margin: 0 }}>
+          <p className="m-0 text-[15.5px] leading-relaxed text-[color-mix(in_srgb,var(--color-text)_78%,transparent)]">
             Connect your order exports and start asking questions today.
           </p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-            <button type="button" className="btn btn-primary" onClick={getStarted}>Get started</button>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button onClick={getStarted}>Get started</Button>
           </div>
         </section>
 
-        <div style={{ padding: "32px 0 0", fontSize: 12.5, color: "var(--color-neutral-600)" }}>
-          RestaurantGPT — built on the Nocturne design system.
+        <div className="pt-8 text-[12.5px] text-[var(--color-neutral-600)]">
+          RestaurantGPT — built on shadcn/ui (trial — the rest of the app uses the hand-rolled theme).
         </div>
       </div>
     </div>
