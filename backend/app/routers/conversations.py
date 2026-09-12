@@ -38,6 +38,21 @@ async def list_conversations(restaurant_id: str = Depends(require_tenant)):
     return [ConversationOut(id=str(r["id"]), title=r["title"], created_at=r["created_at"].isoformat()) for r in rows]
 
 
+@router.delete("/{conversation_id}")
+async def delete_conversation(conversation_id: str, restaurant_id: str = Depends(require_tenant)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # messages -> query_traces both cascade off conversations/messages
+        # (see migrations/001_init.sql), so this one delete is enough.
+        row = await conn.fetchrow(
+            "delete from conversations where id = $1 and restaurant_id = $2 returning id",
+            uuid.UUID(conversation_id), uuid.UUID(restaurant_id),
+        )
+    if row is None:
+        raise HTTPException(404, "conversation not found")
+    return {"conversation_id": conversation_id, "deleted": True}
+
+
 async def _owned_conversation(conn, conversation_id: uuid.UUID, restaurant_id: uuid.UUID):
     """Every conversation-scoped route must check this — a conversation_id
     from the URL is client-supplied, so without this check any

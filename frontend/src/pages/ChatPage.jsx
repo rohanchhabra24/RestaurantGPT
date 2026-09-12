@@ -45,6 +45,16 @@ export default function ChatPage() {
     setMessages([]);
   }
 
+  async function deleteConversation(id) {
+    if (!window.confirm("Delete this query? This can't be undone.")) return;
+    await api.deleteConversation(id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (id === activeId) {
+      setActiveId(null);
+      setMessages([]);
+    }
+  }
+
   async function send(content) {
     if (!content.trim() || sending) return;
     let convId = activeId;
@@ -100,21 +110,32 @@ export default function ChatPage() {
           <Icon name="plus" size={14} />New query
         </button>
         {conversations.map((c) => (
-          <a
-            key={c.id}
-            href="#"
-            className="row-hover"
-            onClick={(e) => { e.preventDefault(); openConversation(c.id); }}
-            style={{
-              display: "flex", gap: 8, alignItems: "flex-start", padding: 8, borderRadius: "var(--radius-md)",
-              textDecoration: "none", fontSize: 13, lineHeight: 1.35,
-              color: c.id === activeId ? "var(--color-accent-100)" : "var(--color-text)",
-              background: c.id === activeId ? "var(--color-accent-900)" : "transparent",
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
-            {c.title || "Untitled query"}
-          </a>
+          <div key={c.id} className="conv-row" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <a
+              href="#"
+              className="row-hover"
+              onClick={(e) => { e.preventDefault(); openConversation(c.id); }}
+              style={{
+                flex: 1, minWidth: 0,
+                display: "flex", gap: 8, alignItems: "flex-start", padding: 8, borderRadius: "var(--radius-md)",
+                textDecoration: "none", fontSize: 13, lineHeight: 1.35,
+                color: c.id === activeId ? "var(--color-accent-100)" : "var(--color-text)",
+                background: c.id === activeId ? "var(--color-accent-900)" : "transparent",
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || "Untitled query"}</span>
+            </a>
+            <button
+              type="button"
+              className="conv-delete btn btn-ghost btn-icon"
+              style={{ width: 26, height: 26, flex: "none" }}
+              aria-label="Delete query"
+              onClick={(e) => { e.preventDefault(); deleteConversation(c.id); }}
+            >
+              <Icon name="x" size={12} />
+            </button>
+          </div>
         ))}
         {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries yet — ask something to get started.</div>}
       </div>

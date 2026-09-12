@@ -1,63 +1,75 @@
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import Icon from "./Icon.jsx";
-import { useStats } from "../statsContext.jsx";
+import UserMenu from "./UserMenu.jsx";
+import NotificationsMenu from "./NotificationsMenu.jsx";
 import UploadDialog from "./UploadDialog.jsx";
-import { useState } from "react";
-import { useAuth } from "../authContext.jsx";
+import { api } from "../api.js";
+
+const NAV_ITEMS = [
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/", label: "Chat", end: true },
+  { to: "/sources", label: "Data Sources" },
+  { to: "/diagnoses", label: "Diagnoses" },
+];
+
+function isItemActive(item, pathname) {
+  return item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
 
 export default function NavBar() {
-  const { stats } = useStats();
-  const { user, signOut } = useAuth();
+  const { pathname } = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [groundedRate, setGroundedRate] = useState(null);
+
+  useEffect(() => {
+    api.getInsightsSummary().then((d) => setGroundedRate(d.total_queries > 0 ? d.grounded_rate : null)).catch(() => {});
+  }, []);
 
   return (
     <div className="nav" style={{ borderBottom: "1px solid var(--color-divider)", background: "var(--color-surface)", flex: "none" }}>
-      <span className="nav-brand" style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 24 }}>
-        <span style={{ width: 22, height: 22, borderRadius: 6, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-          <Icon name="route" size={13} style={{ color: "var(--color-accent-200)" }} />
+      <span className="nav-brand" style={{ display: "flex", alignItems: "center", gap: 9, marginRight: 20 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+          <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />
         </span>
-        RestaurantGPT
+        <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+          RestaurantGPT
+          <span className="nav-brand-tagline">Grounded ops copilot</span>
+        </span>
       </span>
 
-      <NavLink to="/dashboard">Dashboard</NavLink>
-      <NavLink to="/" end>Chat</NavLink>
-      <NavLink to="/sources">Data Sources</NavLink>
-      <NavLink to="/diagnoses">Diagnoses</NavLink>
-      <NavLink to="/traces">Traces</NavLink>
-      <NavLink to="/insights">Insights</NavLink>
-      <NavLink to="/eval">Trust &amp; Eval</NavLink>
+      <nav className="nav-pill" aria-label="Primary">
+        {NAV_ITEMS.map((item) => {
+          const active = isItemActive(item, pathname);
+          return (
+            <NavLink key={item.to} to={item.to} end={item.end} aria-current={active ? "page" : undefined}>
+              {active && <motion.span className="nav-active-pill" layoutId="navActivePill" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+              <span style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
+            </NavLink>
+          );
+        })}
+      </nav>
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-        {stats ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="tag tag-accent mono" style={{ gap: 5 }}>
-              <motion.span
-                animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-                style={{ display: "inline-flex" }}
-              >
-                <Icon name="check" size={11} />
-              </motion.span>
-              Grounded {(stats.pass_rate * 100).toFixed(1)}%
-            </span>
-            <span className="tag tag-neutral mono">Coverage {(stats.avg_citation_coverage * 100).toFixed(0)}%</span>
-          </div>
-        ) : (
-          <NavLink to="/eval" className="tag tag-outline" style={{ textDecoration: "none" }}>
-            Run eval for live accuracy →
-          </NavLink>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        {groundedRate != null && (
+          <span className="tag tag-accent mono" style={{ gap: 5 }} title="Share of real answers with grounding_verdict grounded/no_claims, last 30 days">
+            <motion.span
+              animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              style={{ display: "inline-flex" }}
+            >
+              <Icon name="check" size={11} />
+            </motion.span>
+            Grounded {(groundedRate * 100).toFixed(1)}%
+          </span>
         )}
-        <button type="button" className="btn btn-ghost btn-icon" aria-label="Notifications">
-          <Icon name="bell" size={16} />
-        </button>
         <button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />
           Upload data
         </button>
-        <button type="button" className="btn btn-ghost" title={user?.email} onClick={signOut}>
-          Sign out
-        </button>
+        <NotificationsMenu />
+        <UserMenu />
       </div>
 
       {uploadOpen && <UploadDialog onClose={() => setUploadOpen(false)} />}

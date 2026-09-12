@@ -30,6 +30,7 @@ export const onboardingApi = {
 export const api = {
   listConversations: () => request("/conversations"),
   createConversation: () => request("/conversations", { method: "POST" }),
+  deleteConversation: (conversationId) => request(`/conversations/${conversationId}`, { method: "DELETE" }),
   getMessages: (conversationId) => request(`/conversations/${conversationId}/messages`),
   sendMessage: (conversationId, content) =>
     request(`/conversations/${conversationId}/messages`, {
@@ -55,16 +56,9 @@ export const api = {
     return request("/ingest/documents", { method: "POST", body: form });
   },
 
-  runEval: () => request("/eval/run"),
-  compareNaiveVsGrounded: (question) =>
-    request("/eval/compare", { method: "POST", body: JSON.stringify({ question }) }),
-
   runCompensationSweep: () => request("/compensation/sweep", { method: "POST" }),
   listCompensationClaims: (status) => request(`/compensation/claims${status ? `?status=${status}` : ""}`),
   submitClaim: (claimId) => request(`/compensation/claims/${claimId}/submit`, { method: "POST" }),
-
-  listTraces: () => request("/traces"),
-  getTrace: (traceId) => request(`/traces/${traceId}`),
 
   getInsightsSummary: () => request("/insights/summary"),
   getOperationsSummary: () => request("/insights/operations"),
