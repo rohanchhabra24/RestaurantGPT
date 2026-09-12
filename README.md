@@ -287,9 +287,9 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   with byte size and is what actually drives DB write volume and
   embedding cost.
 - Malformed input now fails clearly instead of as a raw 500: an invalid
-  `effective_date`, a CSV missing expected columns or with non-numeric
-  amounts, or a non-UTF-8 plaintext upload all return a 400 with a specific
-  message (`ingest.py`, `ingestion.py`'s `IngestionError`).
+  `effective_date`, an order CSV whose column mapping can't be resolved
+  (see Data Mapper below), or a non-UTF-8 plaintext upload all return a 400
+  with a specific message (`ingest.py`, `ingestion.py`'s `IngestionError`).
 - Checked for the classic injection classes beyond the text-to-SQL surface
   already covered above: no `subprocess`/`os.system`/`eval`/`exec` calls
   anywhere in the backend (no command-injection surface to begin with), and

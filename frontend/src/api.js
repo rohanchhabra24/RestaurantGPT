@@ -48,6 +48,13 @@ export const api = {
     form.append("file", file);
     return request("/ingest/orders", { method: "POST", body: form });
   },
+  confirmOrdersMapping: (file, profileId, mapping) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("profile_id", profileId);
+    form.append("mapping_json", JSON.stringify({ mappings: mapping }));
+    return request("/ingest/orders/confirm", { method: "POST", body: form });
+  },
   uploadDocument: (file, docType, effectiveDate) => {
     const form = new FormData();
     form.append("file", file);

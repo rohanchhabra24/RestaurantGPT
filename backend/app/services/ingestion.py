@@ -3,15 +3,24 @@ order CSVs into `orders`, and policy documents chunked + embedded into
 `policy_chunks`. Kept synchronous/inline for this build rather than behind a
 queue — the async job pipeline is a documented Phase 4 scale concern, not
 something a demo-sized ingestion needs.
+
+Order CSVs go through the Data Mapper (data_mapper.py) rather than assuming
+one fixed schema: every restaurant/POS export shapes its columns
+differently, so the first upload of a new header shape is proposed by an
+LLM and quarantined for operator review (mirrors the injection guardrail's
+flag-and-review pattern below) — nothing is inserted until a human confirms
+the mapping. A confirmed mapping is cached by a hash of the header row, so
+a restaurant's recurring export format only ever costs one LLM call.
 """
 
 import csv
 import io
+import json
 import uuid
 from datetime import date
 
 from app.db import get_pool
-from app.services import injection_guard
+from app.services import data_mapper, injection_guard
 from app.services.embeddings import embed_batch
 
 CHUNK_SIZE = 800
@@ -50,38 +59,128 @@ def chunk_text(text: str) -> list[str]:
     return [c for c in chunks if c.strip()]
 
 
-async def ingest_orders_csv(raw_csv: bytes, restaurant_id: str) -> int:
-    reader = csv.DictReader(io.StringIO(raw_csv.decode("utf-8")))
+def _parse_order_csv(raw_csv: bytes) -> tuple[list[str], list[dict]]:
+    try:
+        text = raw_csv.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise IngestionError(f"CSV must be UTF-8 text: {e}")
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+    if len(rows) > MAX_ORDER_ROWS:
+        raise IngestionError(f"CSV has more than {MAX_ORDER_ROWS} rows — split it into smaller files")
+    return reader.fieldnames or [], rows
+
+
+async def _insert_mapped_rows(mapped: list["data_mapper.MappedRow"], restaurant_id: str) -> int:
+    rid = uuid.UUID(restaurant_id)
     pool = await get_pool()
     count = 0
     async with pool.acquire() as conn:
         async with conn.transaction():
-            for row in reader:
-                if count >= MAX_ORDER_ROWS:
-                    raise IngestionError(f"CSV has more than {MAX_ORDER_ROWS} rows — split it into smaller files")
-                is_cancelled = row.get("status", "").strip().lower() == "cancelled"
+            for row in mapped:
+                # aggregator_order_id/placed_at are the only columns a row
+                # can't exist without — everything else degrades to a
+                # sensible default rather than dropping the row.
+                if row.aggregator_order_id is None or row.placed_at is None:
+                    continue
                 await conn.execute(
                     """insert into orders
                        (restaurant_id, aggregator_order_id, placed_at, zone, platform, status,
                         total_amount, prep_time_seconds, delivery_time_seconds, is_cancelled,
                         cancellation_reason, weather_flag)
                        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
-                    uuid.UUID(restaurant_id),
-                    row["order_id"],
-                    row["placed_at"],
-                    row["zone"],
-                    row.get("platform", "unknown"),
-                    row["status"],
-                    float(row["total_amount"]) if row.get("total_amount") else None,
-                    int(row["prep_time_seconds"]) if row.get("prep_time_seconds") else None,
-                    int(row["delivery_time_seconds"]) if row.get("delivery_time_seconds") else None,
-                    is_cancelled,
-                    row.get("cancellation_reason") or None,
-                    row.get("weather_flag", "").strip().lower() in ("1", "true", "yes"),
+                    rid,
+                    row.aggregator_order_id,
+                    row.placed_at,
+                    row.zone or "unknown",
+                    row.platform or "unknown",
+                    row.status or "delivered",
+                    row.total_amount,
+                    row.prep_time_seconds,
+                    row.delivery_time_seconds,
+                    (row.status or "") == "cancelled",
+                    row.cancellation_reason,
+                    row.weather_flag,
                 )
                 count += 1
-            await _bump_data_version(conn, uuid.UUID(restaurant_id))
+            await _bump_data_version(conn, rid)
+    if count == 0 and mapped:
+        raise IngestionError(
+            "None of the rows could be mapped — every row was missing an order id or a parseable placed-at "
+            "date. Check the column mapping."
+        )
     return count
+
+
+async def ingest_orders_csv(raw_csv: bytes, restaurant_id: str) -> dict:
+    """Entry point for a fresh upload. Reuses a previously confirmed mapping
+    for this exact header shape when one exists; otherwise proposes one via
+    the LLM and returns it for operator review — no rows are inserted on
+    that path. See ingest_orders_csv_with_mapping for the confirm step."""
+    headers, rows = _parse_order_csv(raw_csv)
+    signature = data_mapper.header_signature(headers)
+    rid = uuid.UUID(restaurant_id)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "select column_mapping from csv_mapping_profiles "
+            "where restaurant_id = $1 and header_signature = $2 and status = 'confirmed'",
+            rid, signature,
+        )
+
+    if existing:
+        mapping = data_mapper.MappingProposal.model_validate(json.loads(existing["column_mapping"]))
+        count = await _insert_mapped_rows(data_mapper.apply_mapping(mapping, rows), restaurant_id)
+        return {"status": "ingested", "orders_ingested": count}
+
+    proposal = await data_mapper.propose_mapping(headers, rows)
+    async with pool.acquire() as conn:
+        profile_row = await conn.fetchrow(
+            """insert into csv_mapping_profiles (restaurant_id, header_signature, sample_headers, column_mapping, status)
+               values ($1, $2, $3, $4, 'proposed')
+               on conflict (restaurant_id, header_signature)
+               do update set sample_headers = excluded.sample_headers, column_mapping = excluded.column_mapping
+               returning id""",
+            rid, signature, headers, proposal.model_dump_json(),
+        )
+    return {
+        "status": "mapping_required",
+        "profile_id": str(profile_row["id"]),
+        "headers": headers,
+        "sample_rows": rows[:3],
+        "proposed_mapping": proposal.model_dump()["mappings"],
+    }
+
+
+async def ingest_orders_csv_with_mapping(
+    raw_csv: bytes, restaurant_id: str, profile_id: str, mapping: "data_mapper.MappingProposal"
+) -> dict:
+    """The confirm step — takes the (possibly operator-edited) mapping and
+    the same file re-uploaded alongside it, persists the mapping as
+    confirmed for this header shape, and actually inserts. Re-checks the
+    header signature against the profile so a confirm call can't be pointed
+    at a file whose columns don't match what was reviewed."""
+    headers, rows = _parse_order_csv(raw_csv)
+    signature = data_mapper.header_signature(headers)
+    rid = uuid.UUID(restaurant_id)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """update csv_mapping_profiles
+               set column_mapping = $1, status = 'confirmed', confirmed_at = now()
+               where id = $2 and restaurant_id = $3 and header_signature = $4
+               returning id""",
+            mapping.model_dump_json(), uuid.UUID(profile_id), rid, signature,
+        )
+    if row is None:
+        raise IngestionError(
+            "Mapping profile not found, or this file's columns no longer match what was reviewed — re-upload to start over."
+        )
+
+    count = await _insert_mapped_rows(data_mapper.apply_mapping(mapping, rows), restaurant_id)
+    return {"status": "ingested", "orders_ingested": count}
 
 
 async def ingest_policy_document(

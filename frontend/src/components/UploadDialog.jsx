@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Icon from "./Icon.jsx";
+import MappingReview from "./MappingReview.jsx";
 import { api } from "../api.js";
 
 const STAGES = ["Uploaded", "Processing", "Indexed"];
@@ -13,6 +14,7 @@ export default function UploadDialog({ onClose, onIndexed }) {
   const [docType, setDocType] = useState("sla");
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [impactReport, setImpactReport] = useState(null);
+  const [pendingMapping, setPendingMapping] = useState(null);
   const inputRef = useRef(null);
 
   function pickFiles(list) {
@@ -25,10 +27,19 @@ export default function UploadDialog({ onClose, onIndexed }) {
     if (files.length === 0) return;
     setBusy(true);
     setStage(1);
+    setError(null);
     try {
       for (const file of files) {
         if (file.name.toLowerCase().endsWith(".csv")) {
-          await api.uploadOrders(file);
+          const result = await api.uploadOrders(file);
+          if (result.status === "mapping_required") {
+            // New export format for this restaurant — nothing was inserted.
+            // Pause here and let the operator review before importing;
+            // handleIndex isn't re-entered until confirmMapping finishes.
+            setPendingMapping({ file, ...result });
+            setBusy(false);
+            return;
+          }
         } else {
           const result = await api.uploadDocument(file, docType, effectiveDate);
           if (result.impact_report) setImpactReport(result.impact_report);
@@ -42,6 +53,43 @@ export default function UploadDialog({ onClose, onIndexed }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function confirmMapping(finalMapping) {
+    if (!pendingMapping) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.confirmOrdersMapping(pendingMapping.file, pendingMapping.profile_id, finalMapping);
+      setPendingMapping(null);
+      setStage(2);
+      onIndexed?.();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (pendingMapping) {
+    return (
+      <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="dialog" style={{ width: 640 }}>
+          <div className="dialog-title">Review column mapping — {pendingMapping.file.name}</div>
+          <div className="dialog-body" style={{ gap: 0 }}>
+            {error && <div className="tag tag-danger" style={{ marginBottom: 14 }}>{error}</div>}
+            <MappingReview
+              headers={pendingMapping.headers}
+              sampleRows={pendingMapping.sample_rows}
+              proposedMapping={pendingMapping.proposed_mapping}
+              busy={busy}
+              onConfirm={confirmMapping}
+              onCancel={() => setPendingMapping(null)}
+            />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

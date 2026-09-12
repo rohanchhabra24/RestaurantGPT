@@ -3,11 +3,12 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from app.auth import require_tenant
 from app.config import settings
 from app.db import get_pool
-from app.services import ingestion, policy_impact, rate_limit
+from app.services import data_mapper, ingestion, policy_impact, rate_limit
 from app.services.ip_rate_limit import limiter
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -99,14 +100,47 @@ async def remove_flagged_chunk(chunk_id: str, restaurant_id: str = Depends(requi
 @router.post("/orders")
 @limiter.limit(settings.ip_rate_limit_ai)
 async def ingest_orders(request: Request, file: UploadFile, restaurant_id: str = Depends(require_tenant)):
+    """First step of the Data Mapper flow. If this restaurant's export
+    format (by header shape) has a confirmed mapping already, this inserts
+    directly. Otherwise it proposes a mapping via the LLM and returns it for
+    review — response `status` is "ingested" or "mapping_required"; the
+    frontend re-submits to /orders/confirm in the latter case."""
     await rate_limit.check_and_record(restaurant_id, "ingest_orders")
     raw = await file.read()
     _check_upload_size(raw)
     try:
-        count = await ingestion.ingest_orders_csv(raw, restaurant_id)
+        result = await ingestion.ingest_orders_csv(raw, restaurant_id)
     except (KeyError, ValueError, UnicodeDecodeError) as e:
-        raise HTTPException(400, f"Malformed order CSV: {e}")
-    return {"orders_ingested": count}
+        raise HTTPException(400, f"Malformed order CSV or column mapping: {e}")
+    return jsonable_encoder(result)
+
+
+@router.post("/orders/confirm")
+@limiter.limit(settings.ip_rate_limit_ai)
+async def confirm_orders_mapping(
+    request: Request,
+    file: UploadFile,
+    profile_id: str = Form(...),
+    mapping_json: str = Form(...),
+    restaurant_id: str = Depends(require_tenant),
+):
+    """Second step — the operator has reviewed (and possibly edited) the
+    proposed mapping; this persists it as confirmed for this header shape
+    and inserts. The same file must be re-submitted alongside it (nothing
+    is held server-side between propose and confirm)."""
+    await rate_limit.check_and_record(restaurant_id, "ingest_orders_confirm")
+    try:
+        mapping = data_mapper.MappingProposal.model_validate_json(mapping_json)
+    except ValidationError as e:
+        raise HTTPException(400, f"Invalid column mapping: {e}")
+
+    raw = await file.read()
+    _check_upload_size(raw)
+    try:
+        result = await ingestion.ingest_orders_csv_with_mapping(raw, restaurant_id, profile_id, mapping)
+    except (KeyError, ValueError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"Malformed order CSV or column mapping: {e}")
+    return jsonable_encoder(result)
 
 
 @router.post("/documents")
