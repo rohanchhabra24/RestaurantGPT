@@ -10,7 +10,7 @@ import Icon from "../components/Icon.jsx";
 // tokens get bridged in, and main.jsx/tailwind.config.js for why this is
 // safe to load globally without affecting any other page (preflight off).
 
-const INTEGRATIONS = ["Swiggy", "Zomato", "Petpooja", "Dunzo"];
+const INTEGRATIONS = ["Swiggy", "Zomato", "Petpooja", "Dunzo", "Your own POS"];
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -108,9 +108,15 @@ export default function LandingPage() {
           <div className="flex items-center gap-2.5">
             <span className="h-px w-8 flex-none bg-primary" />
             <span className="font-heading text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-neutral-500)]">
-              Plugs into what you already run
+              Import your data from any source
             </span>
           </div>
+          <p className="m-0 max-w-[560px] text-sm leading-relaxed text-muted-foreground">
+            Every restaurant exports data differently. Upload a CSV from whatever you already
+            use — Swiggy, Zomato, Petpooja, Dunzo, or your own POS — and our AI automatically
+            matches your columns to a clean, consistent record. No manual reformatting, no
+            fixed template to follow.
+          </p>
           <div className="flex flex-wrap items-center gap-10">
             {INTEGRATIONS.map((name, i) => (
               <span
