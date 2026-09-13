@@ -16,7 +16,7 @@ object is attached when one already exists so the UI can distinguish
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 
 from app.auth import require_tenant
@@ -76,6 +76,7 @@ def _serialize(row: dict) -> dict:
 async def list_orders(
     filter: Literal["all", "cancelled", "eligible"] = "all",
     limit: int = 100,
+    q: str | None = Query(None, description="Substring match on the order's platform/aggregator ID — powers the nav order lookup"),
     restaurant_id: str = Depends(require_tenant),
 ):
     limit = min(limit, 500)
@@ -83,6 +84,7 @@ async def list_orders(
     pool = await get_pool()
 
     query = BASE_QUERY
+    args = [rid]
     if filter == "cancelled":
         query += " and o.is_cancelled = true"
     # "eligible" can't be pushed into SQL — eligibility depends on
@@ -91,10 +93,14 @@ async def list_orders(
     # by `limit`) and filtered precisely in Python below.
     elif filter == "eligible":
         query += " and o.is_cancelled = true"
-    query += " order by o.placed_at desc limit $2"
+    if q and q.strip():
+        args.append(f"%{q.strip()}%")
+        query += f" and o.aggregator_order_id ilike ${len(args)}"
+    args.append(limit)
+    query += f" order by o.placed_at desc limit ${len(args)}"
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch(query, rid, limit)
+        rows = await conn.fetch(query, *args)
 
     orders = [_serialize(dict(r)) for r in rows]
     if filter == "eligible":

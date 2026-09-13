@@ -69,8 +69,17 @@ export const api = {
 
   getInsightsSummary: () => request("/insights/summary"),
   getOperationsSummary: () => request("/insights/operations"),
+  getOrderTrends: (range, from, to) => {
+    const params = new URLSearchParams({ range });
+    if (range === "custom" && from && to) {
+      params.set("from", from);
+      params.set("to", to);
+    }
+    return request(`/insights/order-trends?${params.toString()}`);
+  },
 
   listOrders: (filter = "all", limit = 100) => request(`/orders?filter=${filter}&limit=${limit}`),
+  searchOrders: (q, limit = 8) => request(`/orders?filter=all&limit=${limit}&q=${encodeURIComponent(q)}`),
 
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),

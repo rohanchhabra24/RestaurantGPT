@@ -50,6 +50,7 @@ export default function DiagnosesPage() {
   const [scanning, setScanning] = useState(false);
   const [drawerCitation, setDrawerCitation] = useState(null);
   const [lastScan, setLastScan] = useState(null);
+  const [scanError, setScanError] = useState(null);
 
   function refresh() {
     api.listDiagnosisCards().then(setCards).catch(() => {});
@@ -59,10 +60,13 @@ export default function DiagnosesPage() {
 
   async function runScan() {
     setScanning(true);
+    setScanError(null);
     try {
       const result = await api.runAnomalyScan();
       setLastScan(result);
       refresh();
+    } catch (e) {
+      setScanError(`Couldn't complete the check: ${e.message || e}`);
     } finally {
       setScanning(false);
     }
@@ -76,20 +80,23 @@ export default function DiagnosesPage() {
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "32px clamp(16px, 6vw, 40px)", display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
-        <h2 style={{ margin: 0 }}>Diagnoses</h2>
+        <h2 style={{ margin: 0 }}>What's going wrong</h2>
         <p className="dim" style={{ margin: "4px 0 0", fontSize: 13, maxWidth: 620 }}>
-          Scans every zone for a meaningful delivery-time deviation and, for each one found, runs the same
-          trend → correlation → policy investigation a human analyst would — before anyone asks.
+          Checks every zone for unusual delivery delays and investigates what's causing
+          each one — the digging a manager would do, done automatically.
         </p>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-primary" onClick={runScan} disabled={scanning}>
-          {scanning ? "Scanning zones…" : "Run anomaly scan"}
+          {scanning ? "Checking your zones…" : "Check for problems"}
         </button>
-        {lastScan && (
+        {scanError && <span className="tag tag-danger">{scanError}</span>}
+        {lastScan && !scanError && (
           <span className="dim" style={{ fontSize: 12 }}>
-            Last scan: {lastScan.cards_created} new diagnosis{lastScan.cards_created === 1 ? "" : "es"}
+            {lastScan.cards_created > 0
+              ? `Found ${lastScan.cards_created} new issue${lastScan.cards_created === 1 ? "" : "s"}`
+              : "Checked — nothing unusual found"}
           </span>
         )}
       </div>

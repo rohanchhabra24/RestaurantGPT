@@ -5,13 +5,14 @@ import Icon from "./Icon.jsx";
 import UserMenu from "./UserMenu.jsx";
 import NotificationsMenu from "./NotificationsMenu.jsx";
 import UploadDialog from "./UploadDialog.jsx";
+import OrderSearch from "./OrderSearch.jsx";
 import { api } from "../api.js";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/", label: "Chat", end: true },
   { to: "/sources", label: "Data Sources" },
-  { to: "/diagnoses", label: "Diagnoses" },
+  { to: "/diagnoses", label: "Issues" },
 ];
 
 function isItemActive(item, pathname) {
@@ -35,7 +36,7 @@ export default function NavBar() {
         </span>
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
           RestaurantGPT
-          <span className="nav-brand-tagline">Grounded ops copilot</span>
+          <span className="nav-brand-tagline">Your restaurant, answered</span>
         </span>
       </span>
 
@@ -53,7 +54,7 @@ export default function NavBar() {
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
         {groundedRate != null && (
-          <span className="tag tag-accent mono nav-grounded-tag" style={{ gap: 5 }} title="Share of real answers with grounding_verdict grounded/no_claims, last 30 days">
+          <span className="tag tag-accent mono nav-grounded-tag" style={{ gap: 5 }} title="Share of answers backed by a verified order or policy citation, last 30 days">
             <motion.span
               animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
@@ -61,9 +62,10 @@ export default function NavBar() {
             >
               <Icon name="check" size={11} />
             </motion.span>
-            Grounded {(groundedRate * 100).toFixed(1)}%
+            {(groundedRate * 100).toFixed(0)}% verified answers
           </span>
         )}
+        <OrderSearch />
         <button type="button" className="btn btn-primary nav-upload-btn" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />
           <span className="nav-upload-btn-label">Upload data</span>

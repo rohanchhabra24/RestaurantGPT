@@ -25,7 +25,7 @@ export default {
         border: "var(--color-divider)",
         primary: {
           DEFAULT: "var(--color-accent)",
-          foreground: "#05171c",
+          foreground: "#17121f",
         },
         accent: {
           DEFAULT: "var(--color-accent-800)",

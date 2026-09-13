@@ -18,7 +18,10 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-[var(--color-accent-200)]",
         secondary: "bg-surface-raised text-foreground ring-1 ring-inset ring-border hover:ring-[var(--color-neutral-500)]",
-        ghost: "text-muted-foreground hover:text-foreground hover:bg-white/5",
+        // A literal white wash only reads as a hover lighten in dark mode —
+        // in light mode it's white-on-white, i.e. invisible. Mixing the
+        // theme's own text color at low opacity works in both.
+        ghost: "text-muted-foreground hover:text-foreground hover:bg-[color-mix(in_srgb,var(--color-text)_6%,transparent)]",
         outline: "ring-1 ring-inset ring-border text-foreground hover:ring-[var(--color-neutral-500)]",
       },
       size: {

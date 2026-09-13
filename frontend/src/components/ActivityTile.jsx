@@ -1,12 +1,12 @@
 import Icon from "./Icon.jsx";
 import CountUp from "./CountUp.jsx";
 
-/* A stat tile for a plain count metric, with a small equalizer-style
-   "activity" indicator (four bars pulsing out of phase) standing in for
-   a static icon — inspired by amicro.vercel.app's mono-activity-purple,
-   rebuilt in our own theme/animation stack rather than pulled in as a
-   dependency. Meant for counts that plausibly change during a shift
-   (orders today, breaches today), not static totals. */
+/* A stat tile for a plain count metric that can change during a shift
+   (orders today, breaches today) — a small pulsing dot marks it as "live
+   as of now", using this app's existing live-indicator language (the same
+   rgpt-pulse animation as the Landing page's "Live" badge) rather than an
+   equalizer/loading-spinner look, which reads as "still fetching" instead
+   of "this number updates." */
 export default function ActivityTile({ label, value, icon }) {
   return (
     <div className="activity-tile">
@@ -15,11 +15,7 @@ export default function ActivityTile({ label, value, icon }) {
           {icon && <Icon name={icon} size={11} />}
           {label}
         </div>
-        <span className="activity-bars" aria-hidden="true">
-          {[0, 1, 2, 3].map((i) => (
-            <span key={i} style={{ animationDelay: `${i * 0.14}s` }} />
-          ))}
-        </span>
+        <span className="activity-live-dot" aria-hidden="true" title="Updates through the day" />
       </div>
       <div style={{ font: "600 24px var(--font-body)", color: "var(--color-accent-100)" }}>
         <CountUp value={value ?? 0} decimals={0} />

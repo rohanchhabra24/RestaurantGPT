@@ -4,14 +4,13 @@ import Icon from "../components/Icon.jsx";
 import AnswerCard from "../components/AnswerCard.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
 import InlineConfirm from "../components/InlineConfirm.jsx";
-import Search from "../components/Search.jsx";
 import { api } from "../api.js";
 
 const EXAMPLE_PROMPTS = [
-  { icon: "clock", kicker: "Diagnostic", title: "Why did delivery times spike in Zone 3?", body: "Multi-hop: quantifies the spike, finds what correlates with it, then checks policy." },
-  { icon: "file", kicker: "Policy lookup", title: "Which cancelled orders qualify for SLA compensation?", body: "Cites the exact SLA clause behind every eligibility call." },
-  { icon: "route", kicker: "Compound", title: "Which of yesterday's cancellations in Zone 3 are compensation-eligible?", body: "Joins order data with policy text in a single answer." },
-  { icon: "clock", kicker: "Trend", title: "What was our average delivery time last week?", body: "A pure data question — routed straight to the SQL engine." },
+  { icon: "clock", kicker: "Figure out why", title: "Why did delivery times spike in Zone 3?", body: "Finds the spike, what's causing it, and what your policy says to do about it." },
+  { icon: "file", kicker: "Check a policy", title: "Which cancelled orders qualify for SLA compensation?", body: "Points to the exact line in your policy behind every answer." },
+  { icon: "route", kicker: "Money owed", title: "Which of yesterday's cancellations in Zone 3 are compensation-eligible?", body: "Combines your orders and your policy in one answer." },
+  { icon: "clock", kicker: "Quick number", title: "What was our average delivery time last week?", body: "A straight lookup — no guesswork, no cross-referencing spreadsheets." },
 ];
 
 export default function ChatPage() {
@@ -26,7 +25,7 @@ export default function ChatPage() {
   const [filingClaims, setFilingClaims] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [compError, setCompError] = useState(null);
   const threadEndRef = useRef(null);
 
   useEffect(() => {
@@ -90,11 +89,13 @@ export default function ChatPage() {
 
   async function checkCompensation() {
     setCompBusy(true);
+    setCompError(null);
     try {
       const result = await api.runCompensationSweep();
       setCompensation(result);
-    } catch {
+    } catch (e) {
       setCompensation(null);
+      setCompError(`Couldn't check compensation: ${e.message || e}`);
     } finally {
       setCompBusy(false);
     }
@@ -115,11 +116,8 @@ export default function ChatPage() {
   const recoverableTotal = compensation?.total_recoverable ?? 0;
 
   const todayKey = new Date().toDateString();
-  const visibleConversations = query.trim()
-    ? conversations.filter((c) => (c.title || "Untitled query").toLowerCase().includes(query.trim().toLowerCase()))
-    : conversations;
-  const todaysConversations = visibleConversations.filter((c) => new Date(c.created_at).toDateString() === todayKey);
-  const earlierConversations = visibleConversations.filter((c) => new Date(c.created_at).toDateString() !== todayKey);
+  const todaysConversations = conversations.filter((c) => new Date(c.created_at).toDateString() === todayKey);
+  const earlierConversations = conversations.filter((c) => new Date(c.created_at).toDateString() !== todayKey);
 
   function renderConvRow(c) {
     const isDeleting = deletingId === c.id;
@@ -167,13 +165,8 @@ export default function ChatPage() {
       {sidebarOpen && <div className="chat-sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
       <div className="chat-sidebar" data-open={sidebarOpen} style={{ width: 240, flex: "none", borderRight: "1px solid var(--color-divider)", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4, overflow: "auto" }}>
         <button type="button" className="btn btn-secondary btn-block" style={{ justifyContent: "flex-start", marginBottom: 10 }} onClick={startNewConversation}>
-          <Icon name="plus" size={14} />New query
+          <Icon name="plus" size={14} />New question
         </button>
-        {conversations.length > 0 && (
-          <div style={{ marginBottom: 8 }}>
-            <Search value={query} onChange={setQuery} placeholder="Search queries" width={208} />
-          </div>
-        )}
         {todaysConversations.length > 0 && (
           <>
             <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Today</div>
@@ -186,16 +179,13 @@ export default function ChatPage() {
             {earlierConversations.map(renderConvRow)}
           </>
         )}
-        {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries yet — ask something to get started.</div>}
-        {conversations.length > 0 && visibleConversations.length === 0 && (
-          <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries match "{query}".</div>
-        )}
+        {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>Nothing yet — ask a question below to get started.</div>}
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {activeId && (
           <AnimatePresence>
-            {compBusy || compensation ? (
+            {compBusy || compensation || compError ? (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
@@ -208,11 +198,13 @@ export default function ChatPage() {
                   </motion.span>
                   <span style={{ fontSize: 13, flex: 1 }}>
                     {compBusy ? (
-                      "Checking recent cancellations against the SLA…"
+                      "Checking your recent cancellations for money owed to you…"
+                    ) : compError ? (
+                      compError
                     ) : recoverableCount > 0 ? (
-                      <><strong style={{ fontWeight: 600 }}>Compensation Recovery:</strong> {recoverableCount} drafted claims, ~₹{recoverableTotal.toFixed(0)} recoverable.</>
+                      <><strong style={{ fontWeight: 600 }}>Money owed to you:</strong> {recoverableCount} order{recoverableCount === 1 ? "" : "s"}, about ₹{recoverableTotal.toFixed(0)} total.</>
                     ) : (
-                      "No new compensation-eligible cancellations found."
+                      "No new compensation owed to you right now."
                     )}
                   </span>
                   {!compBusy && recoverableCount > 0 && (
@@ -238,8 +230,8 @@ export default function ChatPage() {
         {messages.length === 0 ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: "40px clamp(16px, 6vw, 40px)", minWidth: 0 }}>
             <div style={{ textAlign: "center", maxWidth: 480, display: "flex", flexDirection: "column", gap: 8 }}>
-              <h2 style={{ margin: 0 }}>Ask anything about your operations.</h2>
-              <p className="dim" style={{ margin: 0, fontSize: 14 }}>Every answer traces back to an order ID or a policy section — verify it yourself, don't just trust it.</p>
+              <h2 style={{ margin: 0 }}>Ask anything about how your restaurant is running.</h2>
+              <p className="dim" style={{ margin: 0, fontSize: 14 }}>Every answer points to the exact order or policy line behind it, so you can double-check it yourself.</p>
             </div>
             <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
               {EXAMPLE_PROMPTS.map((p) => (
@@ -269,7 +261,7 @@ export default function ChatPage() {
             )}
             {sending && (
               <div className="dim" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>Routing → retrieving → verifying…</motion.span>
+                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>Checking your orders and policies…</motion.span>
               </div>
             )}
             <div ref={threadEndRef} />
@@ -281,7 +273,7 @@ export default function ChatPage() {
             <input
               className="input"
               style={{ flex: 1 }}
-              placeholder="Ask about orders, cancellations, SLAs…"
+              placeholder="Ask about orders, cancellations, delays…"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send(draft)}

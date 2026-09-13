@@ -34,6 +34,11 @@
 
   --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.55);
   --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.45);
+  /* The auth pages' corner-vignette wash — needs its own token rather than
+     a literal "black 28%" because a vignette darker than an already-dark
+     background reads as a subtle shadow, but the same literal black on a
+     light background reads as a grimy smudge, not a shadow. */
+  --color-vignette: rgba(0, 0, 0, 0.28);
 
   --space-6: 24px;
 
@@ -42,6 +47,44 @@
   /* Alias, not a distinct typeface — keeps every page on one font stack
      while leaving a single place to introduce a display face later. */
   --font-heading: var(--font-body);
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────────
+   An explicit toggle (Settings → Appearance), not a system-preference
+   auto-switch — persisted to localStorage and applied as a data-theme
+   attribute on <html> before first paint (see main.jsx) so there's no
+   flash of the wrong theme. Every token below preserves the same
+   foreground/background PAIRING as its dark value, not the same ramp
+   position — --color-accent-900 is a near-black wash behind light text
+   in dark mode, so its light-mode equivalent is a near-white wash behind
+   dark text, not literally "a lighter shade of the same hex". */
+:root[data-theme="light"] {
+  --color-bg: #f6f6fa;
+  --color-surface: #ffffff;
+  --color-surface-raised: #eef0f6;
+  --color-text: #16171f;
+  --color-text-dim: #5b5f74;
+  --color-divider: #e1e3ec;
+
+  --color-neutral-300: #4b4f63;
+  --color-neutral-400: #6b6f85;
+  --color-neutral-500: #868aa0;
+  --color-neutral-600: #c7cad6;
+  --color-neutral-800: #eef0f6;
+  --color-neutral-900: #f6f7fb;
+
+  --color-accent: #7a68d6;
+  --color-accent-100: #362a6b;
+  --color-accent-200: #6656c4;
+  --color-accent-800: #e4e0f9;
+  --color-accent-900: #ede9fb;
+
+  --color-danger: #c8434b;
+  --color-danger-bg: #fbe9ea;
+
+  --shadow-lg: 0 24px 60px -24px rgba(30, 30, 60, 0.22);
+  --shadow-md: 0 10px 26px -14px rgba(30, 30, 60, 0.18);
+  --color-vignette: rgba(40, 35, 80, 0.07);
 }
 
 * { box-sizing: border-box; }
@@ -395,24 +438,21 @@ kbd {
   gap: 8px;
 }
 
-.activity-bars {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2.5px;
-  height: 14px;
+/* ── Dashboard tile grid — sized by business priority, not uniform ──────
+   Revenue and Total orders are the numbers an owner actually opens the
+   dashboard to check; SLA/accuracy are supporting detail. Two rows: a
+   hero row (2 big tiles) and a secondary row (up to 4 smaller ones). */
+.dashboard-hero-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.dashboard-secondary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+
+.activity-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   flex: none;
-}
-
-.activity-bars span {
-  width: 3px;
-  border-radius: 2px;
   background: var(--color-accent);
-  animation: rgpt-activity-bar 1.1s ease-in-out infinite;
-}
-
-@keyframes rgpt-activity-bar {
-  0%, 100% { height: 30%; opacity: .55; }
-  50% { height: 100%; opacity: 1; }
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  animation: rgpt-pulse 2.4s ease-in-out infinite;
 }
 
 /* ── Rounded KPI tile (mono-rounded-kpi) ─────────────────────────────────
@@ -700,7 +740,11 @@ kbd {
 
   .example-prompts-grid { grid-template-columns: 1fr !important; }
   .dashboard-split { grid-template-columns: 1fr !important; }
-  .dashboard-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .dashboard-hero-row { grid-template-columns: 1fr !important; }
+  .dashboard-secondary-row { grid-template-columns: repeat(2, 1fr) !important; }
+
+  .seg { max-width: 100%; overflow-x: auto; }
+  .seg-opt { white-space: nowrap; }
 }
 
 @media (min-width: 761px) {

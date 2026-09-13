@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
 import ActivityTile from "../components/ActivityTile.jsx";
 import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
+import HeroStatTile from "../components/HeroStatTile.jsx";
+import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
 import { api } from "../api.js";
 
 const TABS = [
-  { key: "all", label: "All Orders" },
+  { key: "all", label: "All orders" },
   { key: "cancelled", label: "Cancelled" },
-  { key: "eligible", label: "Eligible" },
+  { key: "eligible", label: "Owed compensation" },
 ];
 
 function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }) {
@@ -21,6 +24,27 @@ function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }
       <div style={{ font: "600 24px var(--font-body)" }}>
         {prefix}<CountUp value={value ?? 0} suffix={suffix} decimals={decimals} />
       </div>
+    </div>
+  );
+}
+
+// "-8.5 min" reads as ambiguous (is negative good?) to anyone who isn't
+// already thinking in signed deltas. Words + color say the same thing
+// unambiguously: green and "ahead" is good news, red and "behind" isn't.
+function DeliveryPaceTile({ avgDelaySeconds }) {
+  const known = avgDelaySeconds != null;
+  const minutes = known ? Math.abs(avgDelaySeconds / 60) : 0;
+  const ahead = known && avgDelaySeconds <= 0;
+  return (
+    <div className="card elev-sm" style={{ padding: 16, gap: 6 }}>
+      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon name="clock" size={11} />
+        Delivery speed
+      </div>
+      <div style={{ font: "600 24px var(--font-body)", color: !known ? undefined : ahead ? "var(--color-accent)" : "var(--color-danger)" }}>
+        {known ? <><CountUp value={minutes} decimals={1} suffix=" min" /></> : "—"}
+      </div>
+      {known && <div className="dim" style={{ fontSize: 11 }}>{ahead ? "ahead of target, on average" : "behind target, on average"}</div>}
     </div>
   );
 }
@@ -38,7 +62,7 @@ function statusTag(order) {
     return (
       <span className="tag tag-accent" style={{ gap: 4 }}>
         <Icon name="check" size={10} />
-        Eligible
+        Compensation owed
       </span>
     );
   }
@@ -95,7 +119,7 @@ function delayMinutes(order) {
   return Math.round((order.delivery_time_seconds - order.sla_target_seconds) / 60);
 }
 
-function OrderDetail({ order, onSweep, sweeping }) {
+function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult }) {
   if (!order) {
     return (
       <div className="card elev-sm" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -122,17 +146,17 @@ function OrderDetail({ order, onSweep, sweeping }) {
         </div>
       </div>
 
-      <div style={{ padding: "20px 24px 0", display: "flex", gap: 12, flex: "none" }}>
-        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
+      <div style={{ padding: "20px 24px 0", display: "flex", gap: 12, flex: "none", flexWrap: "wrap" }}>
+        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
           <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Order value</div>
           <div style={{ font: "600 18px var(--font-body)" }}>{order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}</div>
         </div>
-        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
+        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
           <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Delay vs. SLA</div>
           <div style={{ font: "600 18px var(--font-body)" }}>{delay != null ? `${delay >= 0 ? "+" : ""}${delay} min` : "—"}</div>
         </div>
-        <div className="card elev-sm" style={{ flex: 1, padding: "12px 14px", gap: 4 }}>
-          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{order.claim ? "Claim amount" : "Est. compensation"}</div>
+        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{order.claim ? "Claim amount" : "Compensation owed"}</div>
           <div style={{ font: "600 18px var(--font-body)", color: "var(--color-accent)" }}>
             {order.claim ? `₹${order.claim.computed_amount.toFixed(0)}` : order.eligible_amount != null ? `₹${order.eligible_amount.toFixed(0)}` : "—"}
           </div>
@@ -161,11 +185,23 @@ function OrderDetail({ order, onSweep, sweeping }) {
 
       {order.eligible && !order.claim && (
         <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-divider)", flex: "none" }}>
+          {sweepError && (
+            <div className="tag tag-danger" style={{ marginBottom: 10, display: "flex" }}>{sweepError}</div>
+          )}
+          {sweepResult && !sweepError && (
+            <div className="tag tag-accent" style={{ marginBottom: 10, display: "flex", gap: 5 }}>
+              <Icon name="check" size={10} />
+              {sweepResult.drafted_claims.length > 0
+                ? `Drafted ${sweepResult.drafted_claims.length} claim${sweepResult.drafted_claims.length === 1 ? "" : "s"}, ₹${sweepResult.total_recoverable.toFixed(0)} total`
+                : "Checked — nothing new to claim right now"}
+            </div>
+          )}
           <button type="button" className="btn btn-primary btn-block" onClick={onSweep} disabled={sweeping}>
-            {sweeping ? "Running sweep…" : "Run compensation sweep to draft this claim"}
+            {sweeping ? "Checking your orders…" : "Check for recoverable compensation"}
           </button>
           <div className="dim" style={{ fontSize: 11, marginTop: 6 }}>
-            The sweep drafts claims for every eligible order from the last 2 days, not just this one.
+            This checks every eligible cancelled order from the last 2 days, not just this
+            one — it only drafts a claim for you to review, nothing is submitted automatically.
           </div>
         </div>
       )}
@@ -180,11 +216,53 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [sweeping, setSweeping] = useState(false);
+  const [sweepError, setSweepError] = useState(null);
+  const [sweepResult, setSweepResult] = useState(null);
+  const [range, setRange] = useState("week");
+  const [customFrom, setCustomFrom] = useState(null);
+  const [customTo, setCustomTo] = useState(null);
+  const [trends, setTrends] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const orderParam = searchParams.get("order");
 
   useEffect(() => {
     api.getOperationsSummary().then(setKpis).catch(() => {});
     api.getInsightsSummary().then((d) => setAccuracy(d.grounded_rate)).catch(() => {});
   }, []);
+
+  // Arriving from the nav's order lookup (?order=<aggregator_order_id>) —
+  // switch to the unfiltered tab so the order is reachable regardless of
+  // its status, then select it once the list (or a direct fetch, if it's
+  // older than the recent page) confirms it exists.
+  useEffect(() => {
+    if (orderParam) setTab("all");
+  }, [orderParam]);
+
+  useEffect(() => {
+    if (!orderParam || !orders) return;
+    const match = orders.find((o) => o.aggregator_order_id === orderParam);
+    if (match) {
+      setSelectedId(match.id);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    api.searchOrders(orderParam, 1).then((rows) => {
+      if (rows[0]) {
+        setOrders((prev) => [rows[0], ...(prev || []).filter((o) => o.id !== rows[0].id)]);
+        setSelectedId(rows[0].id);
+      }
+    }).finally(() => setSearchParams({}, { replace: true }));
+  }, [orderParam, orders]);
+
+  useEffect(() => {
+    api.getOrderTrends(range, customFrom, customTo).then(setTrends).catch(() => setTrends(null));
+  }, [range, customFrom, customTo]);
+
+  function handleRangeChange({ range: r, from, to }) {
+    setRange(r);
+    setCustomFrom(from ?? null);
+    setCustomTo(to ?? null);
+  }
 
   function refreshOrders() {
     setOrders(null);
@@ -198,16 +276,24 @@ export default function DashboardPage() {
 
   async function runSweep() {
     setSweeping(true);
+    setSweepError(null);
+    setSweepResult(null);
     try {
-      await api.runCompensationSweep();
+      const result = await api.runCompensationSweep();
+      setSweepResult(result);
       refreshOrders();
       api.getOperationsSummary().then(setKpis).catch(() => {});
+      api.getOrderTrends(range, customFrom, customTo).then(setTrends).catch(() => {});
+    } catch (e) {
+      setSweepError(`Couldn't complete the check: ${e.message || e}`);
     } finally {
       setSweeping(false);
     }
   }
 
   const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
+  const revenuePoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.revenue })) ?? [];
+  const orderPoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.orders })) ?? [];
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "24px clamp(16px, 5vw, 32px) 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
@@ -216,15 +302,28 @@ export default function DashboardPage() {
           <h2 style={{ margin: "0 0 2px" }}>Operations</h2>
           <p className="dim" style={{ margin: 0, fontSize: 13 }}>Live view across orders, SLA compliance and compensation.</p>
         </div>
+        <TimeRangeFilter range={range} customFrom={customFrom} customTo={customTo} onChange={handleRangeChange} />
       </div>
 
-      <div className="dashboard-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, flex: "none" }}>
-        <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
-        <StatTile label="Avg delivery delay" value={kpis?.avg_delivery_delay_seconds != null ? kpis.avg_delivery_delay_seconds / 60 : null} decimals={1} suffix=" min" icon="clock" />
+      <div className="dashboard-hero-row">
+        <HeroStatTile
+          label="Revenue" icon="check" format="currency" size="lg"
+          value={trends?.totals.revenue} deltaPct={trends?.deltas_pct.revenue}
+          points={revenuePoints} granularity={trends?.granularity}
+        />
+        <HeroStatTile
+          label="Total orders" icon="db" format="number" size="lg"
+          value={trends?.totals.orders} deltaPct={trends?.deltas_pct.orders}
+          points={orderPoints} granularity={trends?.granularity}
+        />
+      </div>
+
+      <div className="dashboard-secondary-row">
         <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
-        <ActivityTile label="Orders today" value={kpis?.orders_today} icon="db" />
         <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-        <RoundedKpiTile label="Query accuracy" value={accuracy != null ? accuracy * 100 : null} icon="check" />
+        <RoundedKpiTile label="Answer accuracy" value={accuracy != null ? accuracy * 100 : null} icon="check" />
+        <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
+        <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
       </div>
 
       <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
@@ -251,7 +350,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} />
+        <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} sweepError={sweepError} sweepResult={sweepResult} />
       </div>
     </div>
   );

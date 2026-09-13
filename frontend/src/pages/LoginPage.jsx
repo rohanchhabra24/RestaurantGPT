@@ -49,7 +49,7 @@ export default function LoginPage() {
         padding: 24,
         background:
           "radial-gradient(1100px 640px at 84% -140px, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), " +
-          "radial-gradient(1000px 700px at -8% 100%, color-mix(in srgb, black 28%, transparent), transparent 55%), var(--color-bg)",
+          "radial-gradient(1000px 700px at -8% 100%, var(--color-vignette), transparent 55%), var(--color-bg)",
       }}
     >
       <div className="card elev-lg" style={{ width: 360, maxWidth: "100%", padding: 28 }}>

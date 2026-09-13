@@ -87,7 +87,7 @@ export default function SourceDrawer({ citation, onClose }) {
             style={{ width: "min(400px, 100vw)", height: "100%", background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderLeft: "1px solid var(--color-divider)", padding: 22, display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }} className="dim">Source inspection</div>
+              <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }} className="dim">Behind this answer</div>
               <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
                 <Icon name="x" size={14} />
               </button>
@@ -106,7 +106,7 @@ export default function SourceDrawer({ citation, onClose }) {
                 <span className="tag tag-danger" style={{ gap: 5 }}><Icon name="x" size={11} />Could not verify</span>
               )}
               <span className="dim" style={{ fontSize: 12 }}>
-                {citation.verified ? "Matches this turn's retrieved data exactly" : "Model cited this but it wasn't in the actual result set"}
+                {citation.verified ? "This matches your actual data exactly" : "This couldn't be confirmed against your data — treat it with caution"}
               </span>
             </div>
           </motion.div>

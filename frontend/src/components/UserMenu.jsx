@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Settings } from "lucide-react";
 import { useAuth } from "../authContext.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
+import { getTheme, setTheme } from "../theme.js";
 
 /* Settings menu item — the gear rotates 180° on hover rather than
    spinning continuously, so it reads as a control that responds to you
@@ -41,8 +42,13 @@ export default function UserMenu() {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, setThemeState] = useState(getTheme);
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false), open);
+
+  useEffect(() => {
+    setTheme(theme);
+  }, [theme]);
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -78,8 +84,17 @@ export default function UserMenu() {
               </div>
               <div className="hr" />
               <div>
-                <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>Appearance</div>
-                <div style={{ fontSize: 13.5 }}>Dark theme (only option for now)</div>
+                <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>Appearance</div>
+                <div className="seg" role="radiogroup" aria-label="Theme">
+                  <label className="seg-opt" style={{ fontSize: 12.5 }}>
+                    <input type="radio" name="theme" checked={theme === "dark"} onChange={() => setThemeState("dark")} />
+                    Dark
+                  </label>
+                  <label className="seg-opt" style={{ fontSize: 12.5 }}>
+                    <input type="radio" name="theme" checked={theme === "light"} onChange={() => setThemeState("light")} />
+                    Light
+                  </label>
+                </div>
               </div>
             </div>
             <div className="dialog-actions">

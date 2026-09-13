@@ -10,27 +10,27 @@ import { api } from "../api.js";
 // everything else on this page is a real, actionable source list instead.
 function FlowWidget({ orderCount, chunkCount }) {
   return (
-    <div className="card" style={{ flexDirection: "row", alignItems: "center", gap: 24, padding: "18px 24px" }}>
+    <div className="card" style={{ flexDirection: "row", alignItems: "center", gap: 24, padding: "18px 24px", flexWrap: "wrap" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}>
-        <span className="dim">Structured</span>
-        <strong>{orderCount} orders</strong>
+        <span className="dim">Your orders</span>
+        <strong>{orderCount} on file</strong>
       </div>
       <svg width="90" height="24" style={{ flex: "none" }}>
         <path d="M2,12 H88" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeDasharray="6 6" style={{ animation: "rgpt-flow 1s linear infinite", opacity: 0.8 }} />
       </svg>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
-        <Icon name="db" size={14} style={{ color: "var(--color-accent)" }} /> Postgres
+        <Icon name="check" size={14} style={{ color: "var(--color-accent)" }} /> Ready to answer questions
       </div>
       <div style={{ width: 1, height: 28, background: "var(--color-divider)" }} />
       <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}>
-        <span className="dim">Unstructured</span>
-        <strong>{chunkCount} chunks</strong>
+        <span className="dim">Your policies</span>
+        <strong>{chunkCount} sections</strong>
       </div>
       <svg width="90" height="24" style={{ flex: "none" }}>
         <path d="M2,12 H88" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeDasharray="6 6" style={{ animation: "rgpt-flow 1.3s linear infinite", opacity: 0.6 }} />
       </svg>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
-        <Icon name="layers" size={14} style={{ color: "var(--color-accent)" }} /> pgvector + FTS
+        <Icon name="check" size={14} style={{ color: "var(--color-accent)" }} /> Ready to answer questions
       </div>
     </div>
   );
@@ -67,7 +67,7 @@ export default function DataSourcesPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <h2 style={{ margin: 0 }}>Data Sources</h2>
-          <p className="dim" style={{ margin: "4px 0 0", fontSize: 13 }}>What's feeding the engine, and when it last synced.</p>
+          <p className="dim" style={{ margin: "4px 0 0", fontSize: 13 }}>What RestaurantGPT is reading from, and when it was last updated.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />Upload data
@@ -77,36 +77,36 @@ export default function DataSourcesPage() {
       {sources && <FlowWidget orderCount={sources.orders.count} chunkCount={chunkCount} />}
 
       <div>
-        <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Structured</div>
+        <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Order data</div>
         <div className="card elev-sm" style={{ marginTop: 8, flexDirection: "row", alignItems: "center", gap: 14 }}>
           <Icon name="file" size={22} style={{ color: "var(--color-accent)" }} />
           <div style={{ flex: 1 }}>
-            <div className="card-title">order_exports</div>
+            <div className="card-title">Uploaded order history</div>
             <div className="dim" style={{ fontSize: 12 }}>
-              {sources ? `${sources.orders.count} rows` : "…"}
-              {sources?.orders.last_synced && ` · last synced ${new Date(sources.orders.last_synced).toLocaleString()}`}
+              {sources ? `${sources.orders.count} orders` : "…"}
+              {sources?.orders.last_synced && ` · last updated ${new Date(sources.orders.last_synced).toLocaleString()}`}
             </div>
           </div>
-          <span className="tag tag-accent">Live</span>
+          <span className="tag tag-accent">Up to date</span>
         </div>
       </div>
 
       <div>
-        <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Unstructured — policy documents</div>
+        <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Policy documents</div>
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
           {sources?.documents?.length ? sources.documents.map((d) => (
             <motion.div key={d.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <Icon name="file" size={20} style={{ color: "var(--color-accent)" }} />
               <div style={{ flex: 1 }}>
                 <div className="card-title">{d.source_name}</div>
-                <div className="dim" style={{ fontSize: 12 }}>{d.doc_type} · v{d.version} · effective {d.effective_date} · {d.chunk_count} chunks indexed</div>
+                <div className="dim" style={{ fontSize: 12 }}>{d.doc_type} · version {d.version} · effective {d.effective_date} · {d.chunk_count} sections indexed</div>
               </div>
               {Number(d.flagged_count) > 0 && (
-                <span className="tag tag-danger">{d.flagged_count} flagged</span>
+                <span className="tag tag-danger">{d.flagged_count} need review</span>
               )}
             </motion.div>
           )) : (
-            <div className="dim" style={{ fontSize: 13 }}>No policy documents indexed yet.</div>
+            <div className="dim" style={{ fontSize: 13 }}>No policy documents uploaded yet.</div>
           )}
         </div>
       </div>
@@ -138,11 +138,11 @@ export default function DataSourcesPage() {
       {flagged.length > 0 && (
         <div>
           <div style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--color-danger)" }}>
-            Needs review — possible prompt injection
+            Needs your review — flagged as suspicious
           </div>
           <p className="dim" style={{ margin: "4px 0 8px", fontSize: 12.5, maxWidth: 620 }}>
-            These chunks were quarantined at ingestion and are excluded from retrieval until
-            you clear them — they never reach the model as-is.
+            This text was automatically held back when it was uploaded and won't be used to
+            answer questions until you review it — it's never used as-is.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {flagged.map((f) => (
@@ -153,8 +153,8 @@ export default function DataSourcesPage() {
                 </div>
                 <p style={{ fontSize: 12.5, margin: "8px 0", color: "var(--color-text-dim)", whiteSpace: "pre-wrap" }}>{f.chunk_text.slice(0, 240)}{f.chunk_text.length > 240 ? "…" : ""}</p>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="btn btn-secondary" style={{ fontSize: 12 }} onClick={() => approve(f.id)}>Approve — not injection</button>
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, color: "var(--color-danger)" }} onClick={() => remove(f.id)}>Remove chunk</button>
+                  <button type="button" className="btn btn-secondary" style={{ fontSize: 12 }} onClick={() => approve(f.id)}>Approve — this is fine</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12, color: "var(--color-danger)" }} onClick={() => remove(f.id)}>Remove this text</button>
                 </div>
               </div>
             ))}

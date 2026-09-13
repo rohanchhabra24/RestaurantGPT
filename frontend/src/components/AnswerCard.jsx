@@ -23,20 +23,19 @@ function renderAnswerBody(text, citations, onCiteClick) {
   return nodes;
 }
 
-const ROUTE_BADGES = {
-  SQL: [{ icon: "db", label: "text_to_sql_agent" }],
-  RETRIEVAL: [{ icon: "file", label: "policy_retrieval_agent" }],
-  HYBRID: [{ icon: "db", label: "text_to_sql_agent" }, { icon: "file", label: "policy_retrieval_agent" }],
-  DIAGNOSTIC: [
-    { icon: "clock", label: "trend_agent" },
-    { icon: "search", label: "correlation_agent" },
-    { icon: "file", label: "policy_agent" },
-  ],
-  CLARIFY: [],
+// Plain-language stand-ins for the internal route the question took — a
+// restaurant owner has no reason to see "text_to_sql_agent" or
+// "intent_router → HYBRID"; they want to know where the answer came from.
+const ROUTE_SOURCE = {
+  SQL: { icon: "db", label: "From your order data" },
+  RETRIEVAL: { icon: "file", label: "From your policy documents" },
+  HYBRID: { icon: "layers", label: "From your orders + policy documents" },
+  DIAGNOSTIC: { icon: "search", label: "Investigated across your data" },
+  CLARIFY: null,
 };
 
 export default function AnswerCard({ message, onCiteClick }) {
-  const badges = ROUTE_BADGES[message.route_taken] || [];
+  const source = ROUTE_SOURCE[message.route_taken];
   const uniqueCitations = Array.from(new Map(message.citations.map((c) => [`${c.type}:${c.ref_id}`, c])).values());
 
   return (
@@ -46,7 +45,7 @@ export default function AnswerCard({ message, onCiteClick }) {
       transition={{ duration: 0.35 }}
       style={{ maxWidth: 920, display: "flex", flexDirection: "column", gap: 14 }}
     >
-      {(message.route_taken || badges.length > 0 || message.from_cache) && (
+      {(source || message.from_cache) && (
         <motion.div
           initial="hidden"
           animate="show"
@@ -54,21 +53,15 @@ export default function AnswerCard({ message, onCiteClick }) {
           style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
         >
           {message.from_cache && (
-            <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-accent mono" style={{ gap: 5 }}>
-              <Icon name="bolt" size={11} />served from cache
-              {message.cache_similarity != null && ` (${(message.cache_similarity * 100).toFixed(0)}% match)`}
+            <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-accent" style={{ gap: 5 }}>
+              <Icon name="bolt" size={11} />Instant answer
             </motion.span>
           )}
-          {message.route_taken && (
-            <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-outline mono" style={{ gap: 5 }}>
-              <Icon name="route" size={11} />intent_router → {message.route_taken}
+          {source && (
+            <motion.span variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-outline" style={{ gap: 5 }}>
+              <Icon name={source.icon} size={11} />{source.label}
             </motion.span>
           )}
-          {badges.map((b) => (
-            <motion.span key={b.label} variants={{ hidden: { opacity: 0, x: -6 }, show: { opacity: 1, x: 0 } }} className="tag tag-outline mono" style={{ gap: 5 }}>
-              <Icon name={b.icon} size={11} />{b.label}
-            </motion.span>
-          ))}
         </motion.div>
       )}
 
@@ -129,8 +122,8 @@ export default function AnswerCard({ message, onCiteClick }) {
           )}
           <span className="dim" style={{ fontSize: 12 }}>
             {uniqueCitations.length > 0
-              ? `${uniqueCitations.filter((c) => c.verified).length} of ${uniqueCitations.length} citations traced to an order ID or policy section`
-              : "No sourced claims in this answer"}
+              ? `${uniqueCitations.filter((c) => c.verified).length} of ${uniqueCitations.length} facts double-checked against your actual data`
+              : "Nothing in this answer needed a source"}
           </span>
         </motion.div>
       )}
