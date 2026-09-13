@@ -74,7 +74,7 @@ export default function DiagnosesPage() {
   }
 
   return (
-    <div style={{ flex: 1, overflow: "auto", padding: "32px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "32px clamp(16px, 6vw, 40px)", display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
         <h2 style={{ margin: 0 }}>Diagnoses</h2>
         <p className="dim" style={{ margin: "4px 0 0", fontSize: 13, maxWidth: 620 }}>

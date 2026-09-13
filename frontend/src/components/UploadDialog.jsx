@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Folder, FolderOpen, Upload, Check } from "lucide-react";
 import Icon from "./Icon.jsx";
 import MappingReview from "./MappingReview.jsx";
+import MorphButton from "./MorphButton.jsx";
 import { api } from "../api.js";
 
 const STAGES = ["Uploaded", "Processing", "Indexed"];
@@ -118,8 +120,14 @@ export default function UploadDialog({ onClose, onIndexed }) {
             }}
           >
             <Icon name="upload" size={26} style={{ color: "var(--color-accent)" }} />
-            <div style={{ fontSize: 14 }}>Drag CSV, PDF or text files here, or click to browse</div>
-            <div className="dim" style={{ fontSize: 12 }}>Order logs (.csv), SLA policies (.pdf/.md/.txt)</div>
+            <div style={{ fontSize: 14 }}>Drag CSV, PDF or text files here</div>
+            <div className="dim" style={{ fontSize: 12, marginBottom: 6 }}>Order logs (.csv), SLA policies (.pdf/.md/.txt)</div>
+            <MorphButton
+              iconA={Folder}
+              iconB={FolderOpen}
+              label="Browse files"
+              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+            />
             <input
               ref={inputRef}
               type="file"
@@ -205,9 +213,15 @@ export default function UploadDialog({ onClose, onIndexed }) {
         </div>
         <div className="dialog-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={files.length === 0 || busy} onClick={handleIndex}>
-            {busy ? "Indexing…" : "Index files"}
-          </button>
+          <MorphButton
+            iconA={Upload}
+            iconB={Check}
+            active={stage === 2}
+            label={busy ? "Indexing…" : stage === 2 ? "Indexed" : "Index files"}
+            disabled={files.length === 0 || busy}
+            onClick={handleIndex}
+            primary
+          />
         </div>
       </div>
     </div>

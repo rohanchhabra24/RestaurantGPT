@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
+import ActivityTile from "../components/ActivityTile.jsx";
+import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
 import { api } from "../api.js";
 
 const TABS = [
@@ -208,7 +210,7 @@ export default function DashboardPage() {
   const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
 
   return (
-    <div style={{ flex: 1, overflow: "auto", padding: "24px 32px 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "24px clamp(16px, 5vw, 32px) 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
           <h2 style={{ margin: "0 0 2px" }}>Operations</h2>
@@ -216,16 +218,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, flex: "none" }}>
+      <div className="dashboard-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, flex: "none" }}>
         <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
         <StatTile label="Avg delivery delay" value={kpis?.avg_delivery_delay_seconds != null ? kpis.avg_delivery_delay_seconds / 60 : null} decimals={1} suffix=" min" icon="clock" />
-        <StatTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} decimals={1} suffix="%" icon="x" />
-        <StatTile label="Orders today" value={kpis?.orders_today} icon="db" />
-        <StatTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-        <StatTile label="Query accuracy" value={accuracy != null ? accuracy * 100 : null} decimals={1} suffix="%" icon="check" />
+        <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
+        <ActivityTile label="Orders today" value={kpis?.orders_today} icon="db" />
+        <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
+        <RoundedKpiTile label="Query accuracy" value={accuracy != null ? accuracy * 100 : null} icon="check" />
       </div>
 
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
+      <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
         <div className="card elev-sm" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none" }}>
             <div className="seg" role="radiogroup" aria-label="Order filter">

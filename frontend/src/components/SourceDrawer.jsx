@@ -84,7 +84,7 @@ export default function SourceDrawer({ citation, onClose }) {
             animate={{ x: 0 }}
             exit={{ x: 400 }}
             transition={{ type: "spring", damping: 28, stiffness: 260 }}
-            style={{ width: 400, height: "100%", background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderLeft: "1px solid var(--color-divider)", padding: 22, display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}
+            style={{ width: "min(400px, 100vw)", height: "100%", background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderLeft: "1px solid var(--color-divider)", padding: 22, display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }} className="dim">Source inspection</div>

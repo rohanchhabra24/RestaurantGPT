@@ -39,7 +39,7 @@ export default function OnboardingPage({ onDone }) {
           "radial-gradient(1000px 700px at -8% 100%, color-mix(in srgb, black 28%, transparent), transparent 55%), var(--color-bg)",
       }}
     >
-      <div className="card elev-lg" style={{ width: 400, padding: 28 }}>
+      <div className="card elev-lg" style={{ width: 400, maxWidth: "100%", padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
           <span style={{ width: 24, height: 24, borderRadius: 6, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "../components/Icon.jsx";
 import AnswerCard from "../components/AnswerCard.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
+import InlineConfirm from "../components/InlineConfirm.jsx";
+import Search from "../components/Search.jsx";
 import { api } from "../api.js";
 
 const EXAMPLE_PROMPTS = [
@@ -22,6 +24,9 @@ export default function ChatPage() {
   const [compensation, setCompensation] = useState(null);
   const [compBusy, setCompBusy] = useState(false);
   const [filingClaims, setFilingClaims] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const threadEndRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +39,7 @@ export default function ChatPage() {
 
   async function openConversation(id) {
     setActiveId(id);
+    setSidebarOpen(false);
     const msgs = await api.getMessages(id);
     setMessages(msgs);
   }
@@ -45,9 +51,14 @@ export default function ChatPage() {
     setMessages([]);
   }
 
-  async function deleteConversation(id) {
-    if (!window.confirm("Delete this query? This can't be undone.")) return;
-    await api.deleteConversation(id);
+  async function commitDeleteConversation(id) {
+    try {
+      await api.deleteConversation(id);
+    } catch {
+      setDeletingId(null); // failed — undo the optimistic dimming, leave the row in place
+      return;
+    }
+    setDeletingId(null);
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (id === activeId) {
       setActiveId(null);
@@ -104,46 +115,65 @@ export default function ChatPage() {
   const recoverableTotal = compensation?.total_recoverable ?? 0;
 
   const todayKey = new Date().toDateString();
-  const todaysConversations = conversations.filter((c) => new Date(c.created_at).toDateString() === todayKey);
-  const earlierConversations = conversations.filter((c) => new Date(c.created_at).toDateString() !== todayKey);
+  const visibleConversations = query.trim()
+    ? conversations.filter((c) => (c.title || "Untitled query").toLowerCase().includes(query.trim().toLowerCase()))
+    : conversations;
+  const todaysConversations = visibleConversations.filter((c) => new Date(c.created_at).toDateString() === todayKey);
+  const earlierConversations = visibleConversations.filter((c) => new Date(c.created_at).toDateString() !== todayKey);
 
   function renderConvRow(c) {
+    const isDeleting = deletingId === c.id;
     return (
-      <div key={c.id} className="conv-row" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <div key={c.id} className="conv-row" style={{ display: "flex", alignItems: "center", gap: 2, opacity: isDeleting ? 0.5 : 1 }}>
         <a
           href="#"
           className="row-hover"
-          onClick={(e) => { e.preventDefault(); openConversation(c.id); }}
+          onClick={(e) => { e.preventDefault(); if (!isDeleting) openConversation(c.id); }}
           style={{
             flex: 1, minWidth: 0,
             display: "flex", gap: 8, alignItems: "flex-start", padding: 8, borderRadius: "var(--radius-md)",
             textDecoration: "none", fontSize: 13, lineHeight: 1.35,
             color: c.id === activeId ? "var(--color-accent-100)" : "var(--color-text)",
             background: c.id === activeId ? "var(--color-accent-900)" : "transparent",
+            cursor: isDeleting ? "default" : "pointer",
           }}
         >
           <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title || "Untitled query"}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: isDeleting ? "line-through" : "none" }}>{c.title || "Untitled query"}</span>
         </a>
-        <button
-          type="button"
-          className="conv-delete btn btn-ghost btn-icon"
-          style={{ width: 26, height: 26, flex: "none" }}
-          aria-label="Delete query"
-          onClick={(e) => { e.preventDefault(); deleteConversation(c.id); }}
-        >
-          <Icon name="x" size={12} />
-        </button>
+        <div className={isDeleting ? undefined : "conv-delete"}>
+          <InlineConfirm
+            label="Delete query"
+            onConfirm={() => setDeletingId(c.id)}
+            onCommit={() => commitDeleteConversation(c.id)}
+            onUndo={() => setDeletingId(null)}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-      <div style={{ width: 240, flex: "none", borderRight: "1px solid var(--color-divider)", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4, overflow: "auto" }}>
+    <div style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}>
+      <button
+        type="button"
+        className="btn btn-secondary btn-icon chat-sidebar-toggle"
+        style={{ display: "none", position: "absolute", left: 12, top: 12, zIndex: 46 }}
+        aria-label="Toggle query history"
+        onClick={() => setSidebarOpen((v) => !v)}
+      >
+        <Icon name={sidebarOpen ? "x" : "menu"} size={15} />
+      </button>
+      {sidebarOpen && <div className="chat-sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
+      <div className="chat-sidebar" data-open={sidebarOpen} style={{ width: 240, flex: "none", borderRight: "1px solid var(--color-divider)", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4, overflow: "auto" }}>
         <button type="button" className="btn btn-secondary btn-block" style={{ justifyContent: "flex-start", marginBottom: 10 }} onClick={startNewConversation}>
           <Icon name="plus" size={14} />New query
         </button>
+        {conversations.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <Search value={query} onChange={setQuery} placeholder="Search queries" width={208} />
+          </div>
+        )}
         {todaysConversations.length > 0 && (
           <>
             <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Today</div>
@@ -157,6 +187,9 @@ export default function ChatPage() {
           </>
         )}
         {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries yet — ask something to get started.</div>}
+        {conversations.length > 0 && visibleConversations.length === 0 && (
+          <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>No queries match "{query}".</div>
+        )}
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -169,7 +202,7 @@ export default function ChatPage() {
                 exit={{ height: 0, opacity: 0 }}
                 style={{ flex: "none", overflow: "hidden", background: "color-mix(in srgb, var(--color-accent) 10%, transparent)", borderBottom: "1px solid var(--color-divider)" }}
               >
-                <div style={{ padding: "12px 40px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ padding: "12px clamp(16px, 6vw, 40px)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <motion.span animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }} transition={{ duration: 2, repeat: Infinity }} style={{ color: "var(--color-accent)", display: "inline-flex" }}>
                     <Icon name="bell" size={16} />
                   </motion.span>
@@ -203,12 +236,12 @@ export default function ChatPage() {
         )}
 
         {messages.length === 0 ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: 40, minWidth: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: "40px clamp(16px, 6vw, 40px)", minWidth: 0 }}>
             <div style={{ textAlign: "center", maxWidth: 480, display: "flex", flexDirection: "column", gap: 8 }}>
               <h2 style={{ margin: 0 }}>Ask anything about your operations.</h2>
               <p className="dim" style={{ margin: 0, fontSize: 14 }}>Every answer traces back to an order ID or a policy section — verify it yourself, don't just trust it.</p>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
+            <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
               {EXAMPLE_PROMPTS.map((p) => (
                 <div key={p.title} className="card elev-sm" style={{ cursor: "pointer" }} onClick={() => send(p.title)}>
                   <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name={p.icon} size={12} />{p.kicker}</div>
@@ -224,7 +257,7 @@ export default function ChatPage() {
             )}
           </div>
         ) : (
-          <div style={{ flex: 1, overflow: "auto", padding: "28px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ flex: 1, overflow: "auto", padding: "28px clamp(16px, 6vw, 40px)", display: "flex", flexDirection: "column", gap: 20 }}>
             {messages.map((m) =>
               m.role === "user" ? (
                 <div key={m.id} style={{ alignSelf: "flex-end", maxWidth: 640, background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 14 }}>
@@ -243,7 +276,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "16px 40px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "16px clamp(16px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <input
               className="input"

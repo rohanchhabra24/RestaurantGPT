@@ -53,7 +53,7 @@ export default function NavBar() {
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
         {groundedRate != null && (
-          <span className="tag tag-accent mono" style={{ gap: 5 }} title="Share of real answers with grounding_verdict grounded/no_claims, last 30 days">
+          <span className="tag tag-accent mono nav-grounded-tag" style={{ gap: 5 }} title="Share of real answers with grounding_verdict grounded/no_claims, last 30 days">
             <motion.span
               animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
@@ -64,9 +64,9 @@ export default function NavBar() {
             Grounded {(groundedRate * 100).toFixed(1)}%
           </span>
         )}
-        <button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}>
+        <button type="button" className="btn btn-primary nav-upload-btn" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />
-          Upload data
+          <span className="nav-upload-btn-label">Upload data</span>
         </button>
         <NotificationsMenu />
         <UserMenu />

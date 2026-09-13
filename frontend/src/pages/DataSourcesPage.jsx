@@ -63,7 +63,7 @@ export default function DataSourcesPage() {
   const chunkCount = sources?.documents?.reduce((sum, d) => sum + Number(d.chunk_count || 0), 0) ?? 0;
 
   return (
-    <div style={{ flex: 1, overflow: "auto", padding: "32px 40px", display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ flex: 1, overflow: "auto", padding: "32px clamp(16px, 6vw, 40px)", display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <h2 style={{ margin: 0 }}>Data Sources</h2>

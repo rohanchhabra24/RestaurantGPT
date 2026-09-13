@@ -25,7 +25,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className="min-h-screen text-foreground font-sans"
+      className="min-h-screen overflow-x-hidden text-foreground font-sans"
       style={{
         background:
           "radial-gradient(1100px 640px at 84% -140px, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), " +
@@ -43,7 +43,7 @@ export default function LandingPage() {
       </nav>
 
       <div className="mx-auto max-w-[1200px] px-5 pb-14 sm:px-10 lg:px-[72px]">
-        <section className="grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(400px,1fr))]">
+        <section className="grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))]">
           <div className="flex max-w-[560px] flex-col">
             <div className="mb-5 flex items-center gap-2.5">
               <span className="h-px w-8 flex-none bg-primary" />
@@ -65,7 +65,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="relative min-w-[340px]">
+          <div className="relative w-full min-w-0 sm:min-w-[340px]">
             <div
               className="pointer-events-none absolute -inset-9 rounded-3xl opacity-55 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
               style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}
