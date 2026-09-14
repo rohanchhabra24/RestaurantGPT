@@ -1,13 +1,18 @@
-"""Compensation Recovery — a manual-trigger demo of the capability described
-in product.md's Phase 2 roadmap: sweep cancelled/delayed orders, apply the
+"""Compensation Recovery — sweep cancelled/delayed orders, apply the
 deterministic eligibility rules from compensation_rules.py, and draft real
 compensation_claims rows for the ones that qualify.
 
-Deliberately NOT a scheduled worker/queue — that's real infrastructure this
-build doesn't need to demonstrate the technique. This is the same mechanism,
-invoked on demand instead of on a timer. The narrative answer (for the
-operator to read) still goes through the full grounded pipeline; the amounts
-that actually get persisted do not — see compensation_rules.py for why.
+/sweep is the manual, operator-triggered version (button-click demo of the
+capability described in product.md's Phase 2 roadmap); /digest is the
+proactive version (Stage 2D) that computes the same thing automatically,
+once per day, so the operator doesn't have to think to check. Both share
+scan_and_draft_claims() (compensation_sweep.py). Deliberately NOT a
+scheduled worker/queue — that's real infrastructure this build doesn't
+need to demonstrate the technique; the digest is lazily computed on
+whatever request first asks for it each day, not on a timer. The
+narrative answer /sweep returns (for the operator to read) still goes
+through the full grounded pipeline; the amounts that actually get
+persisted do not — see compensation_rules.py for why.
 """
 
 import json
@@ -19,10 +24,10 @@ from fastapi.encoders import jsonable_encoder
 from app.auth import require_tenant
 from app.config import settings
 from app.db import get_pool
-from app.services import compensation_rules, rate_limit
+from app.services import compensation_digest, rate_limit
+from app.services.compensation_sweep import scan_and_draft_claims
 from app.services.ip_rate_limit import limiter
 from app.services.pipeline import run_pipeline
-from app.services.retrieval_engine import hybrid_search
 
 router = APIRouter(prefix="/api/compensation", tags=["compensation"])
 
@@ -30,16 +35,6 @@ SWEEP_QUESTION = (
     "Which of yesterday's cancelled or delayed orders are eligible for "
     "compensation under our current SLA, and how much is recoverable in total?"
 )
-
-SWEEP_WINDOW_SQL = """
-    select id, aggregator_order_id, cancellation_reason, delivery_time_seconds,
-           sla_target_seconds, total_amount
-    from orders
-    where restaurant_id = $1
-      and is_cancelled = true
-      and placed_at >= now() - interval '2 days'
-      and id not in (select order_id from compensation_claims where restaurant_id = $1)
-"""
 
 
 @router.post("/sweep")
@@ -49,33 +44,11 @@ async def run_sweep(request: Request, restaurant_id: str = Depends(require_tenan
     rid = uuid.UUID(restaurant_id)
     pool = await get_pool()
 
-    async with pool.acquire() as conn:
-        candidate_orders = [dict(r) for r in await conn.fetch(SWEEP_WINDOW_SQL, rid)]
-
-    drafted = []
-    for order in candidate_orders:
-        result = compensation_rules.evaluate_order(order)
-        if not result.eligible:
-            continue
-
-        chunks = await hybrid_search(result.clause_search_query, restaurant_id, top_k=1)
-        policy_chunk_id = uuid.UUID(chunks[0]["id"]) if chunks else None
-
-        async with pool.acquire() as conn:
-            claim = await conn.fetchrow(
-                """insert into compensation_claims
-                   (restaurant_id, order_id, policy_chunk_id, computed_amount, status)
-                   values ($1,$2,$3,$4,'drafted')
-                   returning id, computed_amount""",
-                rid, order["id"], policy_chunk_id, round(result.amount, 2),
-            )
-        drafted.append({
-            "claim_id": str(claim["id"]),
-            "order_id": order["aggregator_order_id"],
-            "clause": result.clause,
-            "amount": float(claim["computed_amount"]),
-            "reason": result.reason,
-        })
+    candidate_orders, drafted_claims = await scan_and_draft_claims(pool, rid)
+    drafted = [
+        {"claim_id": d.claim_id, "order_id": d.order_id, "clause": d.clause, "amount": d.amount, "reason": d.reason}
+        for d in drafted_claims
+    ]
 
     # The narrative answer still goes through the full grounded pipeline —
     # this is what the operator reads; it explains the numbers above rather
@@ -153,3 +126,29 @@ async def submit_claim(claim_id: str, restaurant_id: str = Depends(require_tenan
     if row is None:
         raise HTTPException(404, "claim not found or not in 'drafted' state")
     return {"claim_id": claim_id, "status": "submitted"}
+
+
+@router.get("/digest")
+async def get_digest(restaurant_id: str = Depends(require_tenant)):
+    """Today's proactive compensation digest — computed lazily on first
+    request of the day, returned as-is on any later request that same day.
+    """
+    pool = await get_pool()
+    digest = await compensation_digest.get_or_create_today_digest(pool, restaurant_id)
+    return jsonable_encoder(digest)
+
+
+@router.post("/digest/{digest_id}/viewed")
+async def mark_digest_viewed(digest_id: str, restaurant_id: str = Depends(require_tenant)):
+    digest = await compensation_digest.mark_viewed(await get_pool(), restaurant_id, digest_id)
+    if digest is None:
+        raise HTTPException(404, "digest not found")
+    return jsonable_encoder(digest)
+
+
+@router.post("/digest/{digest_id}/dismiss")
+async def dismiss_digest(digest_id: str, restaurant_id: str = Depends(require_tenant)):
+    digest = await compensation_digest.dismiss(await get_pool(), restaurant_id, digest_id)
+    if digest is None:
+        raise HTTPException(404, "digest not found")
+    return jsonable_encoder(digest)

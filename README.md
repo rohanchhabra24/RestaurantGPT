@@ -121,7 +121,11 @@ see the seeded demo data instead of a blank one).
    compensation" runs the sweep and drafts real `compensation_claims` rows
    (amounts computed deterministically, not by the LLM — see
    `compensation_rules.py`); "File N claims" transitions them to
-   `submitted`.
+   `submitted`. The Dashboard also runs this proactively: opening it
+   computes (at most once per day) and shows a dismissible "New
+   compensation found" banner if anything new turned up, so the operator
+   doesn't have to remember to click the button — see
+   `compensation_digest.py` and `GET /api/compensation/digest`.
 6. **Policy Change Impact Simulator** — upload a second version of the SLA
    policy doc (same `doc_type`, a later `effective_date`) in Data Sources
    and watch it replay both rule sets against the last 90 days of orders

@@ -445,6 +445,13 @@ kbd {
 .dashboard-hero-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .dashboard-secondary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
 
+/* Compensation digest banner (Stage 2D) — icon+text wraps as one unit, the
+   button row wraps as another, so narrow screens get two clean lines
+   instead of the text column getting squeezed into a ransom-note wrap. */
+.digest-banner { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; }
+.digest-banner-main { display: flex; align-items: center; gap: 12px; flex: 1 1 220px; min-width: 0; }
+.digest-banner-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+
 .activity-live-dot {
   width: 7px;
   height: 7px;

@@ -73,6 +73,10 @@ export const api = {
   listCompensationClaims: (status) => request(`/compensation/claims${status ? `?status=${status}` : ""}`),
   submitClaim: (claimId) => request(`/compensation/claims/${claimId}/submit`, { method: "POST" }),
 
+  getCompensationDigest: () => request("/compensation/digest"),
+  markDigestViewed: (digestId) => request(`/compensation/digest/${digestId}/viewed`, { method: "POST" }),
+  dismissDigest: (digestId) => request(`/compensation/digest/${digestId}/dismiss`, { method: "POST" }),
+
   getInsightsSummary: () => request("/insights/summary"),
   getOperationsSummary: () => request("/insights/operations"),
   getOrderTrends: (range, from, to) => {

@@ -6,6 +6,7 @@ import ActivityTile from "../components/ActivityTile.jsx";
 import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
 import HeroStatTile from "../components/HeroStatTile.jsx";
 import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
+import CompensationDigestBanner from "../components/CompensationDigestBanner.jsx";
 import { api } from "../api.js";
 
 const TABS = [
@@ -222,6 +223,7 @@ export default function DashboardPage() {
   const [customFrom, setCustomFrom] = useState(null);
   const [customTo, setCustomTo] = useState(null);
   const [trends, setTrends] = useState(null);
+  const [digest, setDigest] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const orderParam = searchParams.get("order");
 
@@ -229,6 +231,31 @@ export default function DashboardPage() {
     api.getOperationsSummary().then(setKpis).catch(() => {});
     api.getInsightsSummary().then((d) => setAccuracy(d.grounded_rate)).catch(() => {});
   }, []);
+
+  // Proactive digest (Stage 2D) — computed lazily server-side, at most once
+  // per day; loading the Dashboard is what triggers it, no click required.
+  useEffect(() => {
+    api.getCompensationDigest().then((d) => {
+      setDigest(d);
+      if (d.status === "new" && d.new_claims_count > 0) {
+        api.markDigestViewed(d.id).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
+
+  function reviewDigestClaims() {
+    setTab("eligible");
+    if (digest) {
+      api.dismissDigest(digest.id).catch(() => {});
+      setDigest((prev) => (prev ? { ...prev, status: "dismissed" } : prev));
+    }
+  }
+
+  function dismissDigest() {
+    if (!digest) return;
+    api.dismissDigest(digest.id).catch(() => {});
+    setDigest((prev) => (prev ? { ...prev, status: "dismissed" } : prev));
+  }
 
   // Arriving from the nav's order lookup (?order=<aggregator_order_id>) —
   // switch to the unfiltered tab so the order is reachable regardless of
@@ -304,6 +331,8 @@ export default function DashboardPage() {
         </div>
         <TimeRangeFilter range={range} customFrom={customFrom} customTo={customTo} onChange={handleRangeChange} />
       </div>
+
+      <CompensationDigestBanner digest={digest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
 
       <div className="dashboard-hero-row">
         <HeroStatTile
