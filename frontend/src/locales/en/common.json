@@ -1,0 +1,53 @@
+{
+  "nav": {
+    "tagline": "Your restaurant, answered",
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "sources": "Data Sources",
+    "diagnoses": "Issues",
+    "uploadData": "Upload data",
+    "groundedSuffix": "{{percent}}% verified answers",
+    "groundedTooltip": "Share of answers backed by a real order or policy you can check yourself, last 30 days",
+    "toggleHistory": "Toggle query history"
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "appearance": "Appearance",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "answerLanguage": "Answer language",
+    "answerLanguageHelp": "Order numbers, amounts, and policy citations always come straight from your data either way — only the wording around them changes.",
+    "appLanguage": "App language",
+    "appLanguageHelp": "Changes the menus, buttons, and labels you see. Independent of Answer language above — you can read the app in English and get answers in Hindi, or the other way around.",
+    "close": "Close",
+    "signOut": "Sign out"
+  },
+  "chat": {
+    "newQuestion": "New question",
+    "today": "Today",
+    "earlier": "Earlier",
+    "emptyHistory": "Nothing yet — ask a question below to get started.",
+    "introText": "I only answer from your actual orders and policies, with a source you can check for every claim — I can't take actions like placing orders or messaging customers.",
+    "heroTitle": "Ask anything about how your restaurant is running.",
+    "heroSubtitle": "Every answer points to the exact order or policy line behind it, so you can double-check it yourself.",
+    "checkCompensation": "Check for recoverable compensation",
+    "compChecking": "Checking your recent cancellations for money owed to you…",
+    "compNoneOwed": "No new compensation owed to you right now.",
+    "compOwedPrefix": "Money owed to you:",
+    "compOwed_one": "{{count}} order, about ₹{{amount}} total.",
+    "compOwed_other": "{{count}} orders, about ₹{{amount}} total.",
+    "compExplain": "Explain",
+    "compFiling": "Filing…",
+    "compFileClaims_one": "File {{count}} claim",
+    "compFileClaims_other": "File {{count}} claims",
+    "compFiled": "Filed",
+    "inputPlaceholder": "Ask about orders, cancellations, delays…",
+    "pressEnter": "Press {{key}} to send",
+    "sendingIndicator": "Checking your orders and policies…",
+    "deleteQuery": "Delete query",
+    "untitledQuery": "Untitled query",
+    "dismissIntro": "Dismiss",
+    "sendAria": "Send"
+  }
+}

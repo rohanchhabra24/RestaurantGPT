@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon.jsx";
 import AnswerCard from "../components/AnswerCard.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
@@ -14,6 +15,7 @@ const EXAMPLE_PROMPTS = [
 ];
 
 export default function ChatPage() {
+  const { t } = useTranslation();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -154,11 +156,11 @@ export default function ChatPage() {
           }}
         >
           <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", marginTop: 5, background: c.id === activeId ? "var(--color-accent)" : "transparent", border: c.id === activeId ? "none" : "1.3px solid var(--color-neutral-600)" }} />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: isDeleting ? "line-through" : "none" }}>{c.title || "Untitled query"}</span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: isDeleting ? "line-through" : "none" }}>{c.title || t("chat.untitledQuery")}</span>
         </a>
         <div className={isDeleting ? undefined : "conv-delete"}>
           <InlineConfirm
-            label="Delete query"
+            label={t("chat.deleteQuery")}
             onConfirm={() => setDeletingId(c.id)}
             onCommit={() => commitDeleteConversation(c.id)}
             onUndo={() => setDeletingId(null)}
@@ -174,7 +176,7 @@ export default function ChatPage() {
         type="button"
         className="btn btn-secondary btn-icon chat-sidebar-toggle"
         style={{ display: "none", position: "absolute", left: 12, top: 12, zIndex: 46 }}
-        aria-label="Toggle query history"
+        aria-label={t("nav.toggleHistory")}
         onClick={() => setSidebarOpen((v) => !v)}
       >
         <Icon name={sidebarOpen ? "x" : "menu"} size={15} />
@@ -182,21 +184,21 @@ export default function ChatPage() {
       {sidebarOpen && <div className="chat-sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
       <div className="chat-sidebar" data-open={sidebarOpen} style={{ width: 240, flex: "none", borderRight: "1px solid var(--color-divider)", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4, overflow: "auto" }}>
         <button type="button" className="btn btn-secondary btn-block" style={{ justifyContent: "flex-start", marginBottom: 10 }} onClick={startNewConversation}>
-          <Icon name="plus" size={14} />New question
+          <Icon name="plus" size={14} />{t("chat.newQuestion")}
         </button>
         {todaysConversations.length > 0 && (
           <>
-            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Today</div>
+            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>{t("chat.today")}</div>
             {todaysConversations.map(renderConvRow)}
           </>
         )}
         {earlierConversations.length > 0 && (
           <>
-            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>Earlier</div>
+            <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", padding: "10px 8px 4px" }}>{t("chat.earlier")}</div>
             {earlierConversations.map(renderConvRow)}
           </>
         )}
-        {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>Nothing yet — ask a question below to get started.</div>}
+        {conversations.length === 0 && <div className="dim" style={{ marginTop: 24, fontSize: 12.5, padding: "0 8px" }}>{t("chat.emptyHistory")}</div>}
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -215,25 +217,25 @@ export default function ChatPage() {
                   </motion.span>
                   <span style={{ fontSize: 13, flex: 1 }}>
                     {compBusy ? (
-                      "Checking your recent cancellations for money owed to you…"
+                      t("chat.compChecking")
                     ) : compError ? (
                       compError
                     ) : recoverableCount > 0 ? (
-                      <><strong style={{ fontWeight: 600 }}>Money owed to you:</strong> {recoverableCount} order{recoverableCount === 1 ? "" : "s"}, about ₹{recoverableTotal.toFixed(0)} total.</>
+                      <><strong style={{ fontWeight: 600 }}>{t("chat.compOwedPrefix")}</strong> {t("chat.compOwed", { count: recoverableCount, amount: recoverableTotal.toFixed(0) })}</>
                     ) : (
-                      "No new compensation owed to you right now."
+                      t("chat.compNoneOwed")
                     )}
                   </span>
                   {!compBusy && recoverableCount > 0 && (
                     compensation.filed ? (
-                      <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />Filed</span>
+                      <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />{t("chat.compFiled")}</span>
                     ) : (
                       <>
                         <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => send("Which of yesterday's cancellations are eligible for compensation, and why?")}>
-                          Explain
+                          {t("chat.compExplain")}
                         </button>
                         <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={fileAllClaims} disabled={filingClaims}>
-                          {filingClaims ? "Filing…" : `File ${recoverableCount} claims`}
+                          {filingClaims ? t("chat.compFiling") : t("chat.compFileClaims", { count: recoverableCount })}
                         </button>
                       </>
                     )
@@ -255,16 +257,16 @@ export default function ChatPage() {
               >
                 <Icon name="check" size={14} style={{ color: "var(--color-accent)", flex: "none" }} />
                 <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
-                  I only answer from your actual orders and policies, with a source you can check for every claim — I can't take actions like placing orders or messaging customers.
+                  {t("chat.introText")}
                 </p>
-                <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" onClick={dismissIntro} style={{ width: 26, height: 26, flex: "none" }}>
+                <button type="button" className="btn btn-ghost btn-icon" aria-label={t("chat.dismissIntro")} onClick={dismissIntro} style={{ width: 26, height: 26, flex: "none" }}>
                   <Icon name="x" size={12} />
                 </button>
               </motion.div>
             )}
             <div style={{ textAlign: "center", maxWidth: 480, display: "flex", flexDirection: "column", gap: 8 }}>
-              <h2 style={{ margin: 0 }}>Ask anything about how your restaurant is running.</h2>
-              <p className="dim" style={{ margin: 0, fontSize: 14 }}>Every answer points to the exact order or policy line behind it, so you can double-check it yourself.</p>
+              <h2 style={{ margin: 0 }}>{t("chat.heroTitle")}</h2>
+              <p className="dim" style={{ margin: 0, fontSize: 14 }}>{t("chat.heroSubtitle")}</p>
             </div>
             <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
               {EXAMPLE_PROMPTS.map((p) => (
@@ -277,7 +279,7 @@ export default function ChatPage() {
             </div>
             {!activeId && (
               <button type="button" className="btn btn-secondary" onClick={checkCompensation}>
-                Check for recoverable compensation
+                {t("chat.checkCompensation")}
               </button>
             )}
           </div>
@@ -294,7 +296,7 @@ export default function ChatPage() {
             )}
             {sending && (
               <div className="dim" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>Checking your orders and policies…</motion.span>
+                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>{t("chat.sendingIndicator")}</motion.span>
               </div>
             )}
             <div ref={threadEndRef} />
@@ -306,16 +308,16 @@ export default function ChatPage() {
             <input
               className="input"
               style={{ flex: 1 }}
-              placeholder="Ask about orders, cancellations, delays…"
+              placeholder={t("chat.inputPlaceholder")}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send(draft)}
             />
-            <button type="button" className="btn btn-primary btn-icon" aria-label="Send" onClick={() => send(draft)} disabled={sending}>
+            <button type="button" className="btn btn-primary btn-icon" aria-label={t("chat.sendAria")} onClick={() => send(draft)} disabled={sending}>
               <Icon name="send" size={15} />
             </button>
           </div>
-          <div className="dim" style={{ fontSize: 11 }}>Press <kbd>⏎</kbd> to send</div>
+          <div className="dim" style={{ fontSize: 11 }}>{t("chat.pressEnter", { key: "⏎" })}</div>
         </div>
       </div>
 

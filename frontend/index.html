@@ -4,12 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RestaurantGPT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Only the static UI chrome (nav, buttons, dialogs — see i18n.js)
+         needs this; AI-answer Hindi text already renders fine in the
+         system sans-serif stack, this just covers the translated labels. -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script>
       // Runs before first paint so switching pages/reloading never flashes
       // the wrong theme — the toggle itself lives in Settings (UserMenu.jsx).
       try {
         var t = localStorage.getItem("rgpt-theme");
         if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+      // Same idea for the static UI language (Stage 3I) — set the <html>
+      // lang attribute before first paint so there's no flash of the wrong
+      // language, and so screen readers/browser tooling see the right
+      // language immediately rather than after i18next initializes.
+      try {
+        var l = localStorage.getItem("rgpt-ui-lang");
+        if (l === "hi" || l === "en") document.documentElement.lang = l;
       } catch (e) {}
     </script>
   </head>

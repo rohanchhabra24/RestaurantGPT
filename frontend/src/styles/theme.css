@@ -48,7 +48,11 @@
 
   --space-6: 24px;
 
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  /* "Noto Sans Devanagari" is a fallback, not a swap — the browser only
+     reaches for it per-glyph, for characters the earlier fonts in this
+     stack don't cover (i.e. Devanagari script), so English text is
+     unaffected whichever language the UI is in. */
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Noto Sans Devanagari", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   /* Alias, not a distinct typeface — keeps every page on one font stack
      while leaving a single place to introduce a display face later. */
