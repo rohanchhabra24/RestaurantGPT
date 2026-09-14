@@ -36,16 +36,134 @@ function FlowWidget({ orderCount, chunkCount }) {
   );
 }
 
+// Stage: Live Feed data source — a daily pull instead of a one-off upload.
+// Defaults to this backend's own built-in synthetic demo feed (see
+// docs/live-feed-data-source.md) so it works with zero configuration;
+// "Change source" lets an operator point it at a real external feed URL
+// instead, without touching any other part of the sync mechanism.
+function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSaveUrl, savingUrl }) {
+  const [editing, setEditing] = useState(false);
+  const [urlDraft, setUrlDraft] = useState(liveFeed?.configured_url || "");
+
+  if (!liveFeed) return null;
+
+  async function save() {
+    await onSaveUrl(urlDraft.trim() || null);
+    setEditing(false);
+  }
+
+  return (
+    <div className="card elev-sm" style={{ marginTop: 8, gap: 10 }}>
+      <div className="wrap-header-row">
+        <div className="wrap-header-row-main">
+          <Icon name="bolt" size={22} style={{ color: "var(--color-accent)", flex: "none" }} />
+          <div style={{ minWidth: 0 }}>
+            <div className="card-title">Live Feed</div>
+            <div className="dim" style={{ fontSize: 12 }}>
+              {liveFeed.using_default_feed ? "Using the built-in demo feed" : `Connected to ${liveFeed.configured_url}`}
+              {liveFeed.last_synced_date ? ` · last synced ${liveFeed.last_synced_date}` : " · not synced yet"}
+              {` · ${liveFeed.orders_from_feed} orders imported from it so far`}
+            </div>
+          </div>
+        </div>
+        <div className="wrap-header-row-actions">
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onSync} disabled={syncing}>
+            {syncing ? "Syncing…" : "Sync now"}
+          </button>
+          <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setEditing((v) => !v)}>
+            {editing ? "Cancel" : "Change source"}
+          </button>
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            className="input"
+            style={{ flex: 1 }}
+            placeholder="https://your-feed.example.com/orders (leave blank to use the built-in demo feed)"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+          />
+          <button type="button" className="btn btn-primary" style={{ fontSize: 12.5 }} onClick={save} disabled={savingUrl}>
+            {savingUrl ? "Saving…" : "Save"}
+          </button>
+        </div>
+      )}
+
+      {syncError && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{syncError}</div>}
+      {syncResult && !syncError && (
+        <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", gap: 5 }}>
+          <Icon name="check" size={10} />
+          {syncResult.synced
+            ? `Imported ${syncResult.new_orders} new order${syncResult.new_orders === 1 ? "" : "s"} for ${syncResult.date}`
+            : syncResult.reason === "already synced"
+              ? `Already up to date for ${syncResult.date}`
+              : syncResult.reason}
+        </div>
+      )}
+
+      <p className="dim" style={{ fontSize: 11, margin: 0 }}>
+        Pulls the previous day's orders automatically the first time anyone opens this page
+        each day — "Sync now" runs it on demand. Point it at your own aggregator export API
+        any time by changing the source above.
+      </p>
+    </div>
+  );
+}
+
 export default function DataSourcesPage() {
   const [sources, setSources] = useState(null);
   const [flagged, setFlagged] = useState([]);
   const [impactReports, setImpactReports] = useState([]);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [syncError, setSyncError] = useState(null);
+  const [savingUrl, setSavingUrl] = useState(false);
+  const [autoSyncedToday, setAutoSyncedToday] = useState(false);
 
   function refresh() {
     api.listSources().then(setSources).catch(() => {});
     api.listFlaggedChunks().then(setFlagged).catch(() => {});
     api.listPolicyImpactReports().then(setImpactReports).catch(() => {});
+  }
+
+  // "Every morning" from the operator's point of view: the first time
+  // anyone opens this page in a given day, quietly try a sync in the
+  // background (it's a no-op if today's already been done — see
+  // live_feed_sync.py) rather than requiring a manual click every day.
+  useEffect(() => {
+    if (autoSyncedToday) return;
+    setAutoSyncedToday(true);
+    api.syncLiveFeed().then((result) => {
+      if (result.synced) refresh();
+    }).catch(() => {});
+  }, [autoSyncedToday]);
+
+  async function runSync() {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const result = await api.syncLiveFeed();
+      setSyncResult(result);
+      if (result.synced) refresh();
+    } catch (e) {
+      setSyncResult(null);
+      setSyncError(`Couldn't sync: ${e.message || e}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function saveLiveFeedUrl(url) {
+    setSavingUrl(true);
+    try {
+      await api.configureLiveFeed(url);
+      refresh();
+    } finally {
+      setSavingUrl(false);
+    }
   }
 
   async function approve(chunkId) {
@@ -89,6 +207,15 @@ export default function DataSourcesPage() {
           </div>
           <span className="tag tag-accent">Up to date</span>
         </div>
+        <LiveFeedCard
+          liveFeed={sources?.live_feed}
+          onSync={runSync}
+          syncing={syncing}
+          syncResult={syncResult}
+          syncError={syncError}
+          onSaveUrl={saveLiveFeedUrl}
+          savingUrl={savingUrl}
+        />
       </div>
 
       <div>

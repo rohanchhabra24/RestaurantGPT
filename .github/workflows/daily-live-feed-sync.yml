@@ -1,0 +1,25 @@
+name: Daily Live Feed Sync
+
+"on":
+  schedule:
+    # 03:00 UTC — safely after midnight everywhere the demo data models
+    # (Asia/Kolkata is UTC+5:30), so "yesterday" is a fully-closed day by
+    # the time this runs.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    # Needs the deployed backend's URL + its CRON_SYNC_SECRET as repo
+    # secrets, and LIVE_FEED_SYNC_ENABLED=true as a repo variable (Settings
+    # -> Secrets and variables -> Actions) — see
+    # docs/live-feed-data-source.md. Skipped rather than failing every
+    # night until those are configured, same pattern as ci.yml's
+    # eval-golden-set job.
+    if: ${{ vars.LIVE_FEED_SYNC_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backend live-feed sync for every restaurant
+        run: |
+          curl -sS -f -X POST "${{ secrets.BACKEND_BASE_URL }}/api/ingest/live-feed/sync-all" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SYNC_SECRET }}"

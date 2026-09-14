@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     # production — never "*" once allow_credentials is True.
     cors_allowed_origins: str = "http://localhost:5173"
 
+    # Live Feed integration (live_feed_sync.py) — this backend's own
+    # publicly-reachable base URL, used as the default live_feed_url
+    # (self: /api/demo-feed/orders) so the daily-sync mechanism works via
+    # a real HTTP fetch without requiring a separately hosted feed first.
+    # Set this to the actual deployed backend URL in production.
+    public_api_base_url: str = "http://localhost:8000"
+
+    # Shared secret for POST /api/ingest/live-feed/sync-all — the endpoint
+    # a scheduled job (e.g. a GitHub Actions cron workflow) calls to sync
+    # every restaurant's live feed once a day without needing a per-user
+    # JWT. Empty (default) disables the endpoint entirely — an unset
+    # secret must never mean "open", the same reasoning as every other
+    # secret-gated route in this app.
+    cron_sync_secret: str = ""
+
     # Only set true when this process itself terminates TLS or sits behind
     # a proxy that forwards the original request scheme faithfully. Most
     # platform deployments already redirect to HTTPS at the load-balancer

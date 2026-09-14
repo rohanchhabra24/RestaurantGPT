@@ -49,6 +49,9 @@ export const api = {
   approveFlaggedChunk: (chunkId) => request(`/ingest/flagged/${chunkId}/approve`, { method: "POST" }),
   removeFlaggedChunk: (chunkId) => request(`/ingest/flagged/${chunkId}`, { method: "DELETE" }),
   listPolicyImpactReports: () => request("/ingest/policy-impact-reports"),
+  syncLiveFeed: () => request("/ingest/live-feed/sync", { method: "POST" }),
+  configureLiveFeed: (url) =>
+    request("/ingest/live-feed/config", { method: "POST", body: JSON.stringify({ live_feed_url: url || null }) }),
   uploadOrders: (file) => {
     const form = new FormData();
     form.append("file", file);

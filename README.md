@@ -354,6 +354,17 @@ path or a page refresh on any non-root route 404s. `frontend/vercel.json`
 and `frontend/public/_redirects` cover Vercel and Netlify respectively;
 other static hosts need the equivalent rewrite rule.
 
+## Live Feed data source
+
+Beyond one-off CSV upload, Data Sources → Live Feed pulls yesterday's
+orders automatically — a real daily HTTP fetch against a configurable
+feed URL, defaulting to this same backend's own built-in synthetic feed
+(`GET /api/demo-feed/orders`) so it works with zero setup. See
+`docs/live-feed-data-source.md` for the full mechanism, how to point it
+at a real external feed instead, and how to enable the included GitHub
+Actions workflow (`.github/workflows/daily-live-feed-sync.yml`) for
+unattended daily syncs even when nobody opens the app that day.
+
 ## Engagement instrumentation
 
 A lightweight event log (`app_events`, migration 010) — not a third-party

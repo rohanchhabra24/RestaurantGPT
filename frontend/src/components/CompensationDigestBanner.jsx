@@ -9,13 +9,13 @@ export default function CompensationDigestBanner({ digest, onReview, onDismiss }
 
   return (
     <div
-      className="card elev-sm digest-banner"
+      className="card elev-sm wrap-header-row"
       style={{
         padding: "14px 18px",
         border: "1px solid var(--color-accent-800)", background: "var(--color-accent-900)",
       }}
     >
-      <div className="digest-banner-main">
+      <div className="wrap-header-row-main">
         <span
           style={{
             width: 34, height: 34, borderRadius: "50%", flex: "none",
@@ -33,7 +33,7 @@ export default function CompensationDigestBanner({ digest, onReview, onDismiss }
           </div>
         </div>
       </div>
-      <div className="digest-banner-actions">
+      <div className="wrap-header-row-actions">
         <button type="button" className="btn btn-primary" onClick={onReview}>
           Review claims
         </button>

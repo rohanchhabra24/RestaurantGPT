@@ -1,14 +1,14 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.auth import require_tenant
 from app.config import settings
 from app.db import get_pool
-from app.services import data_mapper, ingestion, policy_impact, rate_limit
+from app.services import data_mapper, ingestion, live_feed_sync, policy_impact, rate_limit
 from app.services.ip_rate_limit import limiter
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
@@ -35,6 +35,12 @@ async def list_sources(restaurant_id: str = Depends(require_tenant)):
         last_order = await conn.fetchval(
             "select max(created_at) from orders where restaurant_id = $1", rid
         )
+        live_feed_count = await conn.fetchval(
+            "select count(*) from orders where restaurant_id = $1 and source = 'live_feed'", rid
+        )
+        restaurant_row = await conn.fetchrow(
+            "select live_feed_url, live_feed_last_synced_date from restaurants where id = $1", rid,
+        )
         docs = await conn.fetch(
             """select pd.id, pd.source_name, pd.doc_type, pd.effective_date, pd.version,
                       count(pc.id) as chunk_count,
@@ -49,6 +55,13 @@ async def list_sources(restaurant_id: str = Depends(require_tenant)):
     return {
         "orders": {"count": order_count, "last_synced": last_order.isoformat() if last_order else None},
         "documents": [dict(d) for d in docs],
+        "live_feed": {
+            "configured_url": restaurant_row["live_feed_url"],
+            "using_default_feed": restaurant_row["live_feed_url"] is None,
+            "last_synced_date": restaurant_row["live_feed_last_synced_date"].isoformat()
+                if restaurant_row["live_feed_last_synced_date"] else None,
+            "orders_from_feed": live_feed_count,
+        },
     }
 
 
@@ -186,6 +199,45 @@ async def ingest_document(
         )
 
     return {**result, "impact_report": impact_report}
+
+
+class LiveFeedConfigIn(BaseModel):
+    # Empty/omitted clears back to the built-in default demo feed.
+    live_feed_url: str | None = Field(default=None, max_length=2000)
+
+
+@router.post("/live-feed/config")
+async def configure_live_feed(body: LiveFeedConfigIn, restaurant_id: str = Depends(require_tenant)):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "update restaurants set live_feed_url = $1 where id = $2",
+            body.live_feed_url or None, uuid.UUID(restaurant_id),
+        )
+    return {"live_feed_url": body.live_feed_url or None}
+
+
+@router.post("/live-feed/sync")
+async def sync_live_feed(restaurant_id: str = Depends(require_tenant)):
+    """Manual/lazy trigger — same pattern as the compensation digest: safe
+    to call any time, it only does real work once per calendar day."""
+    pool = await get_pool()
+    return await live_feed_sync.sync_yesterday(pool, restaurant_id)
+
+
+@router.post("/live-feed/sync-all")
+async def sync_live_feed_all(x_cron_secret: str = Header(default="")):
+    """What a scheduled job (GitHub Actions cron, or any other scheduler)
+    calls once a day to get real "runs every morning, unattended"
+    behavior — see docs/live-feed-data-source.md. Disabled unless
+    CRON_SYNC_SECRET is set; an unset secret must never mean "open"."""
+    if not settings.cron_sync_secret:
+        raise HTTPException(404, "not configured")
+    if x_cron_secret != settings.cron_sync_secret:
+        raise HTTPException(403, "invalid or missing X-Cron-Secret header")
+
+    pool = await get_pool()
+    return await live_feed_sync.sync_all(pool)
 
 
 @router.get("/policy-impact-reports")

@@ -459,12 +459,16 @@ kbd {
 .dashboard-hero-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .dashboard-secondary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
 
-/* Compensation digest banner (Stage 2D) — icon+text wraps as one unit, the
-   button row wraps as another, so narrow screens get two clean lines
-   instead of the text column getting squeezed into a ransom-note wrap. */
-.digest-banner { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; }
-.digest-banner-main { display: flex; align-items: center; gap: 12px; flex: 1 1 220px; min-width: 0; }
-.digest-banner-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+/* A header row that wraps as two clean units instead of squeezing its
+   text column into a ransom-note wrap on narrow screens: icon+text wrap
+   together, the button row wraps as its own line. Used by any card with
+   this "icon + title/status + action buttons" shape (the compensation
+   digest banner, the Live Feed source card, ...) — purely structural, no
+   color/background baked in, so it's safe to reuse anywhere this shape
+   recurs. */
+.wrap-header-row { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; }
+.wrap-header-row-main { display: flex; align-items: center; gap: 12px; flex: 1 1 220px; min-width: 0; }
+.wrap-header-row-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
 
 .activity-live-dot {
   width: 7px;

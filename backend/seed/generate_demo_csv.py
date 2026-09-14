@@ -22,44 +22,19 @@ import csv
 import random
 from datetime import datetime, timedelta, timezone
 
-ZONES = ["Zone 1", "Zone 2", "Zone 3"]
-ZONE_WEIGHTS = [0.32, 0.33, 0.35]
-PLATFORMS = ["swiggy", "zomato"]
-PLATFORM_WEIGHTS = [0.55, 0.45]
-
-# Baseline cancellation mix on an ordinary day (weights, not percentages —
-# normalized at selection time). weather_delay is deliberately non-trivial
-# even at baseline (rain happens outside the flagged "event" days too);
-# it just dominates the mix *during* an event, handled separately below.
-BASE_CANCEL_REASONS = [
-    ("customer_cancelled_predispatch", 0.26),
-    ("courier_no_show", 0.18),
-    ("item_unavailable", 0.16),
-    ("kitchen_overload", 0.12),
-    ("restaurant_closed_early", 0.09),
-    ("address_issue", 0.07),
-    ("weather_delay", 0.06),
-    ("payment_failed", 0.04),
-    ("restaurant_rejected", 0.02),
-]
+# Shared with the Live Feed integration (app/services/demo_order_generator.py,
+# used by app/routers/demo_feed.py) — one set of distributions/per-order
+# logic instead of two copies that can drift apart. This script's own job
+# is just the day-range loop and the multi-day weather-event scatter,
+# which the live feed's single-day generator doesn't need.
+from app.services.demo_order_generator import (
+    HOUR_WEIGHTS,
+    WEEKDAY_MULT,
+    generate_one_order,
+    weighted_choice,
+)
 
 SLA_TARGET_S = 2400  # 40 min — matches compensation_rules.py's SLA target
-
-# Meal-rush shape: relative order volume by hour of day (24 values). Real
-# delivery platforms see two sharp peaks (lunch, dinner) and a long
-# overnight trough, not a flat distribution across hours.
-HOUR_WEIGHTS = [
-    0.2, 0.1, 0.05, 0.05, 0.05, 0.1, 0.3, 0.6,   # 0–7: overnight → early breakfast trickle
-    0.9, 1.0, 0.9, 1.3, 2.6, 3.0, 2.2, 1.1,       # 8–15: breakfast, lunch rush (12–13), taper
-    1.0, 1.3, 2.0, 3.2, 3.6, 3.0, 2.0, 1.0,       # 16–23: evening build, dinner rush (19–20), wind-down
-]
-# Weekend volume multiplier (Fri/Sat/Sun busier — index 4,5,6 = Fri,Sat,Sun
-# for a Monday=0 week).
-WEEKDAY_MULT = [1.0, 0.95, 0.95, 1.0, 1.15, 1.3, 1.2]
-
-
-def weighted_choice(rng, items, weights):
-    return rng.choices(items, weights=weights, k=1)[0]
 
 
 def pick_weather_events(rng, days):
@@ -102,75 +77,17 @@ def generate_rows(rng, days, orders_per_day_range, now):
             if placed_at > now:
                 continue  # don't generate future orders on the final ("today") day
 
-            zone = weighted_choice(rng, ZONES, ZONE_WEIGHTS)
-            platform = weighted_choice(rng, PLATFORMS, PLATFORM_WEIGHTS)
-
-            # Rain hits Zone 3 hardest (the app's whole demo narrative is
-            # built around this) and other zones somewhat less.
-            weather_flag = False
-            zone_weather_severity = 0.0
-            if is_weather_day:
-                if zone == "Zone 3":
-                    weather_flag = rng.random() < 0.85
-                    zone_weather_severity = 1.0
-                else:
-                    weather_flag = rng.random() < 0.35
-                    zone_weather_severity = 0.35
-
-            # Order value: right-skewed — lots of ₹200–450 solo/small
-            # orders, a longer tail of bigger group orders.
-            amount = round(rng.gammavariate(4.2, 78))
-            amount = max(99, min(amount, 2400))
-
-            # Prep time: rush hours load the kitchen more.
-            rush_load = HOUR_WEIGHTS[hour] / 3.6
-            prep_s = round(rng.uniform(360, 1100) * (1 + 0.35 * rush_load))
-
             # Whether this order is even still "in flight" — only possible
             # for the last couple of hours of the whole range.
-            can_be_in_progress = day_offset == 0 and (now - placed_at) < timedelta(minutes=110)
-
-            # Baseline cancellation rate ~9%, roughly doubling on a
-            # weather-hit Zone 3 day — this is the spike a diagnostic
-            # question or the anomaly scan should actually be able to find.
-            cancel_prob = 0.09 + 0.11 * zone_weather_severity
-            is_cancelled = (not can_be_in_progress) and rng.random() < cancel_prob
-
-            status = "delivered"
-            delivery_s = None
-            reason = None
-
-            if can_be_in_progress and rng.random() < 0.55:
-                status = "in_progress"
-            elif is_cancelled:
-                status = "cancelled"
-                if is_weather_day and zone_weather_severity > 0 and rng.random() < 0.7:
-                    reason = "weather_delay"
-                else:
-                    reasons, weights = zip(*BASE_CANCEL_REASONS)
-                    reason = weighted_choice(rng, list(reasons), list(weights))
-                # A pre-dispatch cancellation never accrued delivery time.
-                if reason != "customer_cancelled_predispatch":
-                    travel_s = rng.uniform(700, 1500) * (1 + 0.9 * zone_weather_severity)
-                    delivery_s = round(prep_s + travel_s)
-            else:
-                status = "delivered"
-                travel_s = rng.uniform(650, 1350) * (1 + 0.55 * zone_weather_severity)
-                delivery_s = round(prep_s + travel_s)
-
             order_seq += rng.randint(1, 6)
-            rows.append({
-                "order_id": str(order_seq),
-                "placed_at": placed_at.strftime("%Y-%m-%dT%H:%M:%S"),
-                "zone": zone,
-                "platform": platform,
-                "status": status,
-                "total_amount": amount,
-                "prep_time_seconds": prep_s if status != "in_progress" else round(prep_s * rng.uniform(0.3, 0.9)),
-                "delivery_time_seconds": delivery_s if delivery_s is not None else "",
-                "cancellation_reason": reason or "",
-                "weather_flag": "true" if weather_flag else "false",
-            })
+            row = generate_one_order(rng, order_seq, placed_at, is_weather_day, allow_in_progress=day_offset == 0, now=now)
+            # CSV needs string-typed cells; generate_one_order returns native
+            # None/bool (correct for demo_feed.py's JSON response) — convert
+            # here rather than changing what that function returns.
+            row["delivery_time_seconds"] = row["delivery_time_seconds"] if row["delivery_time_seconds"] is not None else ""
+            row["cancellation_reason"] = row["cancellation_reason"] or ""
+            row["weather_flag"] = "true" if row["weather_flag"] else "false"
+            rows.append(row)
 
     rows.sort(key=lambda r: r["placed_at"])
     return rows, weather_events
