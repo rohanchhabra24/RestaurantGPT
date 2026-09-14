@@ -8,8 +8,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Only the static UI chrome (nav, buttons, dialogs — see i18n.js)
          needs this; AI-answer Hindi text already renders fine in the
-         system sans-serif stack, this just covers the translated labels. -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
+         system sans-serif stack, this just covers the translated labels.
+         Loaded as a non-blocking preload that swaps to a real stylesheet
+         once fetched (the standard loadCSS pattern) instead of a plain
+         <link rel="stylesheet">, which would otherwise hold up first paint
+         on a third-party font fetch for a script most of the app never
+         renders. font-display: swap (already in the URL) means text is
+         never invisible waiting on it either way. -->
+    <link
+      rel="preload" as="style"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" />
+    </noscript>
     <script>
       // Runs before first paint so switching pages/reloading never flashes
       // the wrong theme — the toggle itself lives in Settings (UserMenu.jsx).

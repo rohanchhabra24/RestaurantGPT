@@ -8,6 +8,7 @@ fed back into the prompt (product.md step 9) rather than silently shipping
 an unverified claim.
 """
 
+import asyncio
 import time
 
 from app.services import grounding, intent_router, multi_agent_investigator, pricing, retrieval_engine, sql_engine, synthesis
@@ -46,6 +47,24 @@ class PipelineResult:
 
 def _timed(stage: str, start: float, result: PipelineResult) -> None:
     result.latency_ms_by_stage[stage] = int((time.perf_counter() - start) * 1000)
+
+
+async def _run_sql(question: str, slots: dict, restaurant_id: str, result: PipelineResult) -> None:
+    t1 = time.perf_counter()
+    try:
+        sql = await sql_engine.generate_sql(question, slots, restaurant_id, usage_sink=result.usage)
+        result.generated_sql = sql
+        result.sql_rows = await sql_engine.execute_sql(sql)
+    except sql_engine.SQLValidationError as e:
+        result.sql_rows = []
+        result.generated_sql = f"-- rejected by validator: {e}"
+    _timed("sql", t1, result)
+
+
+async def _run_retrieval(question: str, restaurant_id: str, result: PipelineResult) -> None:
+    t2 = time.perf_counter()
+    result.chunks = await retrieval_engine.hybrid_search(question, restaurant_id)
+    _timed("retrieval", t2, result)
 
 
 _CLARIFY_MESSAGES = {
@@ -100,21 +119,19 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
 
     investigation_steps_text = None
 
-    if result.route_taken in ("SQL", "HYBRID"):
-        t1 = time.perf_counter()
-        try:
-            sql = await sql_engine.generate_sql(question, slots, restaurant_id, usage_sink=result.usage)
-            result.generated_sql = sql
-            result.sql_rows = await sql_engine.execute_sql(sql)
-        except sql_engine.SQLValidationError as e:
-            result.sql_rows = []
-            result.generated_sql = f"-- rejected by validator: {e}"
-        _timed("sql", t1, result)
-
-    if result.route_taken in ("RETRIEVAL", "HYBRID"):
-        t2 = time.perf_counter()
-        result.chunks = await retrieval_engine.hybrid_search(question, restaurant_id)
-        _timed("retrieval", t2, result)
+    # HYBRID needs both SQL and retrieval, and neither depends on the
+    # other's result — running them concurrently instead of one after the
+    # other shaves the slower of the two off the total instead of paying
+    # for both back to back.
+    if result.route_taken == "HYBRID":
+        await asyncio.gather(
+            _run_sql(question, slots, restaurant_id, result),
+            _run_retrieval(question, restaurant_id, result),
+        )
+    elif result.route_taken == "SQL":
+        await _run_sql(question, slots, restaurant_id, result)
+    elif result.route_taken == "RETRIEVAL":
+        await _run_retrieval(question, restaurant_id, result)
 
     if result.route_taken == "DIAGNOSTIC":
         t2b = time.perf_counter()

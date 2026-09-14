@@ -88,7 +88,7 @@ export default function AnswerCard({ message, onCiteClick }) {
         <motion.div
           initial="hidden"
           animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.08 } } }}
+          variants={{ show: { transition: { staggerChildren: 0.04 } } }}
           style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
         >
           {message.from_cache && (
@@ -107,7 +107,7 @@ export default function AnswerCard({ message, onCiteClick }) {
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.15, duration: 0.4 }}
+        transition={{ duration: 0.2 }}
         style={{ fontSize: 15, lineHeight: 1.65, margin: 0 }}
       >
         {renderAnswerBody(message.content, message.citations, onCiteClick)}
@@ -117,7 +117,7 @@ export default function AnswerCard({ message, onCiteClick }) {
         <motion.div
           initial="hidden"
           animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.3 } } }}
+          variants={{ show: { transition: { staggerChildren: 0.04, delayChildren: 0.08 } } }}
           style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}
         >
           {message.investigation_steps.map((step, i) => (
@@ -134,7 +134,7 @@ export default function AnswerCard({ message, onCiteClick }) {
       )}
 
       {message.data_table && message.data_table.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} style={{ overflowX: "auto" }}>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08, duration: 0.2 }} style={{ overflowX: "auto" }}>
           <table className="table">
             <thead>
               <tr>
@@ -153,7 +153,7 @@ export default function AnswerCard({ message, onCiteClick }) {
       )}
 
       {message.grounding_verdict && VERDICT_META[message.grounding_verdict] && (
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.12, duration: 0.2 }} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span className={`tag ${VERDICT_META[message.grounding_verdict].tag}`} style={{ gap: 5 }}>
             <Icon name={VERDICT_META[message.grounding_verdict].icon} size={10} />
             {VERDICT_META[message.grounding_verdict].label}

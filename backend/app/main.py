@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -12,6 +13,7 @@ from app.config import settings
 from app.db import close_pool, get_pool
 from app.middleware import AccessLogMiddleware, SecurityHeadersMiddleware
 from app.routers import compensation, conversations, demo_feed, diagnostics, eval, events, ingest, insights, onboarding, orders, settings as settings_router, traces
+from app.services import embeddings
 from app.services.ip_rate_limit import limiter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -19,7 +21,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await get_pool()
+    # Both independent (network to Supabase vs. loading a local model file
+    # from disk) — run concurrently so startup pays the slower of the two,
+    # not both back to back. Warming the embedding model here means the
+    # first real request that touches retrieval or the semantic cache
+    # doesn't have to eat that load cost live (it's blocking CPU/disk work,
+    # hence to_thread rather than awaiting it directly on the event loop).
+    await asyncio.gather(get_pool(), asyncio.to_thread(embeddings.warm))
     yield
     await close_pool()
 

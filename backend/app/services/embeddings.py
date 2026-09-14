@@ -18,6 +18,14 @@ def _model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 
+def warm() -> None:
+    """Loads the model now instead of lazily on whichever real request
+    first touches retrieval or the semantic cache — call this once from
+    main.py's lifespan (in a thread; loading is blocking CPU/disk work)
+    so that request doesn't have to eat the load cost live."""
+    _model()
+
+
 def embed(text: str) -> list[float]:
     return _model().encode(text, normalize_embeddings=True).tolist()
 

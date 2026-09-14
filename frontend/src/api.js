@@ -9,16 +9,36 @@ export function setAccessToken(token) {
   currentAccessToken = token;
 }
 
+// Dedupes identical concurrent GETs (e.g. NavBar and DashboardPage both
+// independently fetching /insights/summary on the same page load) into
+// one network request instead of firing it twice — safe because GET has
+// no side effects, and this only merges requests that are genuinely
+// in-flight at the same time; it's not a time-based cache, so it never
+// serves data staler than a fresh call would anyway. POST/PATCH/DELETE
+// are never deduped.
+const inFlightGets = new Map();
+
 async function request(path, options = {}) {
+  const isGet = !options.method || options.method.toUpperCase() === "GET";
+  if (isGet && inFlightGets.has(path)) return inFlightGets.get(path);
+
   const headers = options.body instanceof FormData ? {} : { "Content-Type": "application/json" };
   if (currentAccessToken) headers["Authorization"] = `Bearer ${currentAccessToken}`;
 
-  const res = await fetch(`${BASE}${path}`, { headers, ...options });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status} ${path}: ${text}`);
+  const promise = (async () => {
+    const res = await fetch(`${BASE}${path}`, { headers, ...options });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`${res.status} ${path}: ${text}`);
+    }
+    return res.json();
+  })();
+
+  if (isGet) {
+    inFlightGets.set(path, promise);
+    promise.finally(() => inFlightGets.delete(path));
   }
-  return res.json();
+  return promise;
 }
 
 export const onboardingApi = {
