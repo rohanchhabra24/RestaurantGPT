@@ -14,13 +14,50 @@ const EXAMPLE_PROMPTS = [
   { icon: "clock", kicker: "Quick number", title: "What was our average delivery time last week?", body: "A straight lookup — no guesswork, no cross-referencing spreadsheets." },
 ];
 
+// ChatPage is unmounted every time you switch to another nav tab (Dashboard,
+// Data Sources, Issues — React Router swaps the route component out), so
+// anything kept only in local useState — which open conversation, an
+// unsent draft — was getting wiped and remounting back to the empty
+// history-list view. sessionStorage survives the unmount/remount (and a
+// reload, until the tab closes) without needing to lift this state up
+// into a provider above <Routes> just to keep it alive across a tab switch.
+const DRAFT_KEY = "rgpt-chat-draft";
+const ACTIVE_ID_KEY = "rgpt-chat-active-id";
+
+function readStorage(key) {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch {
+    return ""; // private browsing / blocked storage — falls back to today's behavior
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
+  } catch {
+    // ignore — same fallback as above
+  }
+}
+
 export default function ChatPage() {
   const { t } = useTranslation();
   const [conversations, setConversations] = useState([]);
-  const [activeId, setActiveId] = useState(null);
+  const [activeId, setActiveIdState] = useState(() => readStorage(ACTIVE_ID_KEY) || null);
   const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraftState] = useState(() => readStorage(DRAFT_KEY));
   const [sending, setSending] = useState(false);
+
+  function setActiveId(id) {
+    setActiveIdState(id);
+    writeStorage(ACTIVE_ID_KEY, id || "");
+  }
+
+  function setDraft(value) {
+    setDraftState(value);
+    writeStorage(DRAFT_KEY, value);
+  }
   const [drawerCitation, setDrawerCitation] = useState(null);
   const [compensation, setCompensation] = useState(null);
   const [compBusy, setCompBusy] = useState(false);
@@ -48,6 +85,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     api.listConversations().then(setConversations).catch(() => {});
+  }, []);
+
+  // Reload the previously-open conversation's messages on mount — they
+  // don't persist in storage themselves (just refetched), only which
+  // conversation was open does.
+  useEffect(() => {
+    if (!activeId) return;
+    api.getMessages(activeId).then(setMessages).catch(() => setActiveId(null));
   }, []);
 
   useEffect(() => {
