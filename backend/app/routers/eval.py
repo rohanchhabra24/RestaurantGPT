@@ -17,6 +17,16 @@ async def run_eval(request: Request, restaurant_id: str = Depends(require_tenant
     return await eval_service.run_golden_set(restaurant_id)
 
 
+@router.get("/run/multilingual")
+@limiter.limit(settings.ip_rate_limit_ai)
+async def run_eval_multilingual(request: Request, restaurant_id: str = Depends(require_tenant)):
+    """Stage 2F's release gate — English/Hindi/Hinglish golden sets plus
+    whether each non-English language clears the tolerance-vs-English-
+    baseline bar. See eval_service.run_multilingual_gate."""
+    await rate_limit.check_and_record(restaurant_id, "eval_run")
+    return await eval_service.run_multilingual_gate(restaurant_id)
+
+
 class CompareIn(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
 

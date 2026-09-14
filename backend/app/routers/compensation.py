@@ -80,6 +80,13 @@ async def run_sweep(request: Request, restaurant_id: str = Depends(require_tenan
     # The narrative answer still goes through the full grounded pipeline —
     # this is what the operator reads; it explains the numbers above rather
     # than computing them.
+    #
+    # Deliberately English-only (no response_language passed through) —
+    # this is a financial/compensation answer, and the release gate for
+    # non-English financial answers is the multilingual eval harness
+    # (backend/eval/), which doesn't exist yet. Don't thread a language
+    # preference in here until that harness exists and passes for the
+    # language in question — see synthesis.py's language-steering comment.
     pipeline_result = await run_pipeline(SWEEP_QUESTION, restaurant_id)
     async with pool.acquire() as conn:
         trace_row = await conn.fetchrow(

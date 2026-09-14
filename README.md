@@ -73,6 +73,18 @@ python -m eval.run_eval
 
 Exits non-zero if the golden-set pass rate drops below 85%.
 
+Add `--multilingual` to also run the Hindi and Hinglish golden sets
+(`backend/eval/golden_set_hindi.json` / `golden_set_hinglish.json`) and
+check them against the release gate: each non-English language must stay
+within `LANGUAGE_TOLERANCE` (15 percentage points, `eval_service.py`) of
+the English baseline pass rate to be considered trustworthy for
+financial/compensation answers. This is also exposed at
+`GET /api/eval/run/multilingual` for an authenticated caller.
+
+```bash
+python -m eval.run_eval --multilingual
+```
+
 ## 3. Frontend
 
 ```bash
