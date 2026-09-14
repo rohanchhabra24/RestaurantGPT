@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, ValidationError
 
@@ -223,6 +223,22 @@ async def sync_live_feed(restaurant_id: str = Depends(require_tenant)):
     to call any time, it only does real work once per calendar day."""
     pool = await get_pool()
     return await live_feed_sync.sync_yesterday(pool, restaurant_id)
+
+
+@router.post("/live-feed/backfill")
+@limiter.limit(settings.ip_rate_limit_ai)
+async def backfill_live_feed(
+    request: Request,
+    days: int = Query(30, ge=1, le=live_feed_sync.MAX_BACKFILL_DAYS),
+    restaurant_id: str = Depends(require_tenant),
+):
+    """Populate several days of history through the Live Feed at once,
+    instead of waiting one real day per sync — the actual way to get a
+    realistic-looking demo dataset flowing through this integration
+    rather than through a CSV upload. See docs/live-feed-data-source.md."""
+    await rate_limit.check_and_record(restaurant_id, "live_feed_backfill")
+    pool = await get_pool()
+    return await live_feed_sync.backfill(pool, restaurant_id, days)
 
 
 @router.post("/live-feed/sync-all")

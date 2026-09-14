@@ -58,6 +58,16 @@ zero code changes.
   (`CRON_SYNC_SECRET`) rather than a per-user login, since a scheduler has
   no user session to authenticate as; returns 404 until that secret is
   configured, so it's inert by default rather than an open endpoint.
+- **`POST /api/ingest/live-feed/backfill?days=N`** — the "Backfill 30
+  days" button (Data Sources page). `sync_yesterday` only ever pulls one
+  day, by design — that's what makes it a faithful daily-feed simulation,
+  but it also means a brand-new signup starts with an empty Live Feed
+  history and would need 30 real days to see a realistic multi-day
+  dataset. This calls the exact same fetch-and-insert path once per day
+  in a range instead (capped at `MAX_BACKFILL_DAYS = 90`), so a fresh
+  restaurant can get a realistic demo history in one click. Idempotent
+  the same way — safe to call again, or to call on top of days a real
+  daily sync already covered.
 
 ## Turning on real unattended automation
 
@@ -85,6 +95,24 @@ condition checks the same `LIVE_FEED_SYNC_ENABLED` variable) rather than
 failing — same pattern `ci.yml`'s `eval-golden-set` job already uses for
 its own not-yet-configured secrets, so there's nothing to disable if you
 don't want this yet.
+
+## "Imported 0 new orders" on a first sync
+
+If a sync reports 0 new orders on what looks like your very first click,
+it's not necessarily broken — the same day's data can only ever be
+inserted once (each order id is unique per restaurant, so a repeat fetch
+of the same day just no-ops the second time). The most common trigger
+during local development is React's `StrictMode`, which intentionally
+double-fires effects — including the "auto-sync once per day" one on the
+Data Sources page — so the *first* of the two fires actually inserts the
+orders and the *second* reports zero new ones a moment later. That's
+expected, not a bug: `sync_yesterday` locks the restaurant's row for the
+duration of a sync specifically so two overlapping calls can't both
+attempt the same day's fetch — the second one now cleanly reports
+"already synced" once the first commits, rather than quietly reprocessing
+the same day and reporting a confusing zero. If you want to see it
+actually accumulate more data, use Backfill (above) rather than clicking
+Sync repeatedly — Sync is capped at one day by design.
 
 ## Trying it locally without any of the above
 

@@ -41,7 +41,7 @@ function FlowWidget({ orderCount, chunkCount }) {
 // docs/live-feed-data-source.md) so it works with zero configuration;
 // "Change source" lets an operator point it at a real external feed URL
 // instead, without touching any other part of the sync mechanism.
-function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSaveUrl, savingUrl }) {
+function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSaveUrl, savingUrl, onBackfill, backfilling, backfillResult, backfillError }) {
   const [editing, setEditing] = useState(false);
   const [urlDraft, setUrlDraft] = useState(liveFeed?.configured_url || "");
 
@@ -69,6 +69,9 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
         <div className="wrap-header-row-actions">
           <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onSync} disabled={syncing}>
             {syncing ? "Syncing…" : "Sync now"}
+          </button>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onBackfill} disabled={backfilling}>
+            {backfilling ? "Backfilling…" : "Backfill 30 days"}
           </button>
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setEditing((v) => !v)}>
             {editing ? "Cancel" : "Change source"}
@@ -103,10 +106,19 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
         </div>
       )}
 
+      {backfillError && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{backfillError}</div>}
+      {backfillResult && !backfillError && (
+        <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", gap: 5 }}>
+          <Icon name="check" size={10} />
+          {`Imported ${backfillResult.total_new_orders} new order${backfillResult.total_new_orders === 1 ? "" : "s"} across ${backfillResult.days_requested} days`}
+        </div>
+      )}
+
       <p className="dim" style={{ fontSize: 11, margin: 0 }}>
         Pulls the previous day's orders automatically the first time anyone opens this page
-        each day — "Sync now" runs it on demand. Point it at your own aggregator export API
-        any time by changing the source above.
+        each day — "Sync now" runs it on demand. For a realistic demo dataset right away, use
+        "Backfill 30 days" instead of waiting one real day at a time. Point it at your own
+        aggregator export API any time by changing the source above.
       </p>
     </div>
   );
@@ -122,6 +134,9 @@ export default function DataSourcesPage() {
   const [syncError, setSyncError] = useState(null);
   const [savingUrl, setSavingUrl] = useState(false);
   const [autoSyncedToday, setAutoSyncedToday] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState(null);
+  const [backfillError, setBackfillError] = useState(null);
 
   function refresh() {
     api.listSources().then(setSources).catch(() => {});
@@ -163,6 +178,21 @@ export default function DataSourcesPage() {
       refresh();
     } finally {
       setSavingUrl(false);
+    }
+  }
+
+  async function runBackfill() {
+    setBackfilling(true);
+    setBackfillError(null);
+    try {
+      const result = await api.backfillLiveFeed(30);
+      setBackfillResult(result);
+      refresh();
+    } catch (e) {
+      setBackfillResult(null);
+      setBackfillError(`Couldn't backfill: ${e.message || e}`);
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -215,6 +245,10 @@ export default function DataSourcesPage() {
           syncError={syncError}
           onSaveUrl={saveLiveFeedUrl}
           savingUrl={savingUrl}
+          onBackfill={runBackfill}
+          backfilling={backfilling}
+          backfillResult={backfillResult}
+          backfillError={backfillError}
         />
       </div>
 

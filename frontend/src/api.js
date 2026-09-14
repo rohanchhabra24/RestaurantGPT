@@ -50,6 +50,7 @@ export const api = {
   removeFlaggedChunk: (chunkId) => request(`/ingest/flagged/${chunkId}`, { method: "DELETE" }),
   listPolicyImpactReports: () => request("/ingest/policy-impact-reports"),
   syncLiveFeed: () => request("/ingest/live-feed/sync", { method: "POST" }),
+  backfillLiveFeed: (days = 30) => request(`/ingest/live-feed/backfill?days=${days}`, { method: "POST" }),
   configureLiveFeed: (url) =>
     request("/ingest/live-feed/config", { method: "POST", body: JSON.stringify({ live_feed_url: url || null }) }),
   uploadOrders: (file) => {
