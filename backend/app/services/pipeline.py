@@ -47,7 +47,14 @@ def _timed(stage: str, start: float, result: PipelineResult) -> None:
     result.latency_ms_by_stage[stage] = int((time.perf_counter() - start) * 1000)
 
 
-async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
+_CLARIFY_MESSAGES = {
+    "english": "I need a bit more detail to answer that precisely — which time window, zone, or order status are you asking about?",
+    "hindi": "इसका सही जवाब देने के लिए मुझे थोड़ी और जानकारी चाहिए — आप किस समय अवधि, ज़ोन, या ऑर्डर स्टेटस के बारे में पूछ रहे हैं?",
+    "hinglish": "Iska sahi jawaab dene ke liye mujhe thodi aur detail chahiye — aap kaunse time window, zone, ya order status ke baare mein pooch rahe hain?",
+}
+
+
+async def run_pipeline(question: str, restaurant_id: str, response_language: str = "english") -> PipelineResult:
     result = PipelineResult()
 
     t0 = time.perf_counter()
@@ -57,10 +64,7 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
     slots = routing.get("slots", {})
 
     if result.route_taken == "CLARIFY":
-        result.answer_text = (
-            "I need a bit more detail to answer that precisely — which time window, "
-            "zone, or order status are you asking about?"
-        )
+        result.answer_text = _CLARIFY_MESSAGES.get(response_language, _CLARIFY_MESSAGES["english"])
         result.grounding_verdict = "no_claims"
         result.citation_coverage = 1.0
         return result
@@ -93,7 +97,10 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
         _timed("investigation", t2b, result)
 
     t3 = time.perf_counter()
-    raw_answer = await synthesis.synthesize(question, result.sql_rows, result.chunks, investigation_steps_text, usage_sink=result.usage)
+    raw_answer = await synthesis.synthesize(
+        question, result.sql_rows, result.chunks, investigation_steps_text,
+        usage_sink=result.usage, response_language=response_language,
+    )
     _timed("synthesis", t3, result)
 
     t4 = time.perf_counter()
@@ -108,7 +115,10 @@ async def run_pipeline(question: str, restaurant_id: str) -> PipelineResult:
             "provided data. Answer again using ONLY the order IDs and policy chunk "
             "ids actually present below, or say the data is insufficient.)"
         )
-        raw_answer = await synthesis.synthesize(corrective_question, result.sql_rows, result.chunks, investigation_steps_text, usage_sink=result.usage)
+        raw_answer = await synthesis.synthesize(
+            corrective_question, result.sql_rows, result.chunks, investigation_steps_text,
+            usage_sink=result.usage, response_language=response_language,
+        )
         citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
         result.regenerated = True
 

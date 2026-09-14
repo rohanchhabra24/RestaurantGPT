@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 
-from app.auth import require_tenant
+from app.auth import AuthContext, require_tenant, require_tenant_context
 from app.config import settings
 from app.db import get_pool
 from app.models import Citation, ConversationOut, MessageIn, MessageOut
@@ -85,8 +85,9 @@ async def get_messages(conversation_id: str, restaurant_id: str = Depends(requir
 @router.post("/{conversation_id}/messages", response_model=MessageOut)
 @limiter.limit(settings.ip_rate_limit_ai)
 async def post_message(
-    request: Request, conversation_id: str, body: MessageIn, restaurant_id: str = Depends(require_tenant)
+    request: Request, conversation_id: str, body: MessageIn, ctx: AuthContext = Depends(require_tenant_context)
 ):
+    restaurant_id = ctx.restaurant_id
     pool = await get_pool()
     conv_uuid = uuid.UUID(conversation_id)
     rid = uuid.UUID(restaurant_id)
@@ -106,8 +107,17 @@ async def post_message(
                 "update conversations set title = $1 where id = $2", body.content[:80], conv_uuid
             )
 
+        # Whichever language this member has selected in Settings — answers
+        # (and the semantic cache, which is scoped by it too) follow the
+        # asker, not the restaurant, since different staff can prefer
+        # different languages on the same account.
+        response_language = await conn.fetchval(
+            "select response_language from restaurant_members where restaurant_id = $1 and user_id = $2",
+            rid, uuid.UUID(ctx.user_id),
+        ) or "english"
+
     t0 = time.perf_counter()
-    cached = await semantic_cache.lookup(body.content, restaurant_id)
+    cached = await semantic_cache.lookup(body.content, restaurant_id, response_language)
     cache_lookup_ms = int((time.perf_counter() - t0) * 1000)
 
     if cached:
@@ -147,8 +157,8 @@ async def post_message(
             cache_similarity=cached["similarity"],
         )
 
-    result = await run_pipeline(body.content, restaurant_id)
-    await semantic_cache.store(body.content, restaurant_id, result)
+    result = await run_pipeline(body.content, restaurant_id, response_language)
+    await semantic_cache.store(body.content, restaurant_id, result, response_language)
 
     citations_json = json.dumps([c.model_dump() for c in result.citations])
 

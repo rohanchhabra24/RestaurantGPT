@@ -96,3 +96,18 @@ async def require_tenant(authorization: str | None = Header(None)) -> str:
             "(POST /api/onboarding/restaurant).",
         )
     return ctx.restaurant_id
+
+
+async def require_tenant_context(authorization: str | None = Header(None)) -> AuthContext:
+    """Same gate as require_tenant, but for the handful of routes (e.g.
+    per-user settings) that need to know *which member* of the restaurant
+    is calling, not just which restaurant — returns the full context
+    instead of collapsing it to the restaurant_id string."""
+    ctx = await get_current_user(authorization)
+    if not ctx.restaurant_id:
+        raise HTTPException(
+            403,
+            "Your account isn't linked to a restaurant yet — complete onboarding first "
+            "(POST /api/onboarding/restaurant).",
+        )
+    return ctx

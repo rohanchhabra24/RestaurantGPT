@@ -27,6 +27,12 @@ export const onboardingApi = {
     request("/onboarding/restaurant", { method: "POST", body: JSON.stringify({ name }) }),
 };
 
+export const settingsApi = {
+  get: () => request("/settings"),
+  update: (responseLanguage) =>
+    request("/settings", { method: "PATCH", body: JSON.stringify({ response_language: responseLanguage }) }),
+};
+
 export const api = {
   listConversations: () => request("/conversations"),
   createConversation: () => request("/conversations", { method: "POST" }),

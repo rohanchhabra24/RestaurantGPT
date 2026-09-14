@@ -4,6 +4,13 @@ import { Settings } from "lucide-react";
 import { useAuth } from "../authContext.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
 import { getTheme, setTheme } from "../theme.js";
+import { settingsApi } from "../api.js";
+
+const LANGUAGE_OPTIONS = [
+  { key: "english", label: "English" },
+  { key: "hindi", label: "Hindi" },
+  { key: "hinglish", label: "Hinglish" },
+];
 
 /* Settings menu item — the gear rotates 180° on hover rather than
    spinning continuously, so it reads as a control that responds to you
@@ -43,12 +50,33 @@ export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setThemeState] = useState(getTheme);
+  const [language, setLanguage] = useState(null); // null = still loading
+  const [languageSaving, setLanguageSaving] = useState(false);
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false), open);
 
   useEffect(() => {
     setTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (settingsOpen && language === null) {
+      settingsApi.get().then((s) => setLanguage(s.response_language)).catch(() => setLanguage("english"));
+    }
+  }, [settingsOpen, language]);
+
+  async function changeLanguage(next) {
+    const prev = language;
+    setLanguage(next);
+    setLanguageSaving(true);
+    try {
+      await settingsApi.update(next);
+    } catch {
+      setLanguage(prev); // revert — the toggle shouldn't claim a change that didn't save
+    } finally {
+      setLanguageSaving(false);
+    }
+  }
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -95,6 +123,28 @@ export default function UserMenu() {
                     Light
                   </label>
                 </div>
+              </div>
+              <div className="hr" />
+              <div>
+                <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>Answer language</div>
+                <div className="seg" role="radiogroup" aria-label="Answer language">
+                  {LANGUAGE_OPTIONS.map((opt) => (
+                    <label key={opt.key} className="seg-opt" style={{ fontSize: 12.5 }}>
+                      <input
+                        type="radio"
+                        name="response-language"
+                        checked={language === opt.key}
+                        disabled={language === null || languageSaving}
+                        onChange={() => changeLanguage(opt.key)}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="dim" style={{ fontSize: 11, margin: "6px 0 0", lineHeight: 1.5 }}>
+                  Order numbers, amounts, and policy citations always come straight from your
+                  data either way — only the wording around them changes.
+                </p>
               </div>
             </div>
             <div className="dialog-actions">
