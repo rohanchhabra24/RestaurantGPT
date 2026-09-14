@@ -26,7 +26,23 @@ export default function ChatPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [compError, setCompError] = useState(null);
+  const [showIntro, setShowIntro] = useState(() => {
+    try {
+      return localStorage.getItem("rgpt-chat-intro-seen") !== "1";
+    } catch {
+      return true;
+    }
+  });
   const threadEndRef = useRef(null);
+
+  function dismissIntro() {
+    setShowIntro(false);
+    try {
+      localStorage.setItem("rgpt-chat-intro-seen", "1");
+    } catch {
+      // Private browsing / blocked storage — it'll just show again next visit.
+    }
+  }
 
   useEffect(() => {
     api.listConversations().then(setConversations).catch(() => {});
@@ -67,6 +83,7 @@ export default function ChatPage() {
 
   async function send(content) {
     if (!content.trim() || sending) return;
+    if (showIntro) dismissIntro();
     let convId = activeId;
     if (!convId) {
       const conv = await api.createConversation();
@@ -229,6 +246,22 @@ export default function ChatPage() {
 
         {messages.length === 0 ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: "40px clamp(16px, 6vw, 40px)", minWidth: 0 }}>
+            {showIntro && !activeId && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card elev-sm"
+                style={{ maxWidth: 560, flexDirection: "row", alignItems: "center", gap: 10, padding: "10px 14px", background: "color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))" }}
+              >
+                <Icon name="check" size={14} style={{ color: "var(--color-accent)", flex: "none" }} />
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
+                  I only answer from your actual orders and policies, with a source you can check for every claim — I can't take actions like placing orders or messaging customers.
+                </p>
+                <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" onClick={dismissIntro} style={{ width: 26, height: 26, flex: "none" }}>
+                  <Icon name="x" size={12} />
+                </button>
+              </motion.div>
+            )}
             <div style={{ textAlign: "center", maxWidth: 480, display: "flex", flexDirection: "column", gap: 8 }}>
               <h2 style={{ margin: 0 }}>Ask anything about how your restaurant is running.</h2>
               <p className="dim" style={{ margin: 0, fontSize: 14 }}>Every answer points to the exact order or policy line behind it, so you can double-check it yourself.</p>

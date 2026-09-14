@@ -54,7 +54,7 @@ export default function NavBar() {
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
         {groundedRate != null && (
-          <span className="tag tag-accent mono nav-grounded-tag" style={{ gap: 5 }} title="Share of answers backed by a verified order or policy citation, last 30 days">
+          <span className="tag tag-accent mono nav-grounded-tag" style={{ gap: 5 }} title="Share of answers backed by a real order or policy you can check yourself, last 30 days">
             <motion.span
               animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}

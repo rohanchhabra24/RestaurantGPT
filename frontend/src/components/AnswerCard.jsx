@@ -130,9 +130,16 @@ export default function AnswerCard({ message, onCiteClick }) {
 
       {uniqueCitations.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Sources</span>
+          <span style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }} className="dim">Tap to check</span>
           {uniqueCitations.map((c) => (
-            <span key={`${c.type}:${c.ref_id}`} className="tag tag-outline clickable mono" onClick={() => onCiteClick(c)}>{c.label}</span>
+            <span
+              key={`${c.type}:${c.ref_id}`}
+              className="tag tag-outline clickable mono"
+              onClick={() => onCiteClick(c)}
+              title={c.type === "order" ? "Tap to see the order details" : "Tap to see the policy clause"}
+            >
+              {c.label}
+            </span>
           ))}
         </div>
       )}
