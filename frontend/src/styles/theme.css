@@ -27,6 +27,12 @@
   --color-danger: #f26d6d;
   --color-danger-bg: #2a1414;
 
+  /* "Some of this answer verified, some didn't" — distinct from danger
+     (nothing verified) and accent (everything verified), so a partially-
+     grounded answer doesn't get lumped visually with either extreme. */
+  --color-warning: #e8b854;
+  --color-warning-bg: #2b2311;
+
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -81,6 +87,9 @@
 
   --color-danger: #c8434b;
   --color-danger-bg: #fbe9ea;
+
+  --color-warning: #9a6b0d;
+  --color-warning-bg: #fbf1dd;
 
   --shadow-lg: 0 24px 60px -24px rgba(30, 30, 60, 0.22);
   --shadow-md: 0 10px 26px -14px rgba(30, 30, 60, 0.18);
@@ -320,6 +329,7 @@ a { color: inherit; }
 .tag-neutral { background: var(--color-surface-raised); color: var(--color-text-dim); }
 .tag-outline { background: transparent; border: 1px solid var(--color-divider); color: var(--color-text-dim); }
 .tag-danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.tag-warn { background: var(--color-warning-bg); color: var(--color-warning); }
 
 .tag.clickable { cursor: pointer; }
 .tag.clickable:hover { filter: brightness(1.2); }

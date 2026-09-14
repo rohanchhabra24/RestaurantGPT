@@ -25,6 +25,7 @@ class PipelineResult:
         self.citation_coverage: float = 0.0
         self.latency_ms_by_stage: dict[str, int] = {}
         self.regenerated: bool = False
+        self.abstained: bool = False
         self.investigation_steps: list[str] = []
         self.usage: list[dict] = []  # one {"model","input_tokens","output_tokens"} per Claude call this turn
 
@@ -51,6 +52,34 @@ _CLARIFY_MESSAGES = {
     "english": "I need a bit more detail to answer that precisely — which time window, zone, or order status are you asking about?",
     "hindi": "इसका सही जवाब देने के लिए मुझे थोड़ी और जानकारी चाहिए — आप किस समय अवधि, ज़ोन, या ऑर्डर स्टेटस के बारे में पूछ रहे हैं?",
     "hinglish": "Iska sahi jawaab dene ke liye mujhe thodi aur detail chahiye — aap kaunse time window, zone, ya order status ke baare mein pooch rahe hain?",
+}
+
+# Stage 2E: what the operator sees when grounding still fails after the
+# corrective retry below. Deterministic, not model-generated — same
+# philosophy as compensation_rules.py computing amounts in plain Python
+# rather than trusting an LLM's prose for something trust-critical. The
+# corrective retry's own prompt already asks the model to say "the data is
+# insufficient" itself, but that's a request, not a guarantee; this is the
+# actual guarantee. Overriding the answer text (not just flagging it) is
+# what makes "zero-hallucination" hold even on the failure path — an
+# operator reading a still-confident-sounding paragraph next to a small red
+# tag is exactly the failure mode a real abstention message has to prevent.
+_ABSTENTION_MESSAGES = {
+    "english": (
+        "I couldn't verify a confident answer to that from your actual orders or "
+        "policies. Rather than guess, I'm going to say so — try narrowing the time "
+        "window or zone, or rephrasing the question, and I'll try again."
+    ),
+    "hindi": (
+        "मैं आपके असली ऑर्डर या पॉलिसी डेटा से इसका भरोसेमंद जवाब नहीं दे पाया। अंदाज़ा लगाने "
+        "की बजाय मैं यह साफ़ बता रहा हूँ — समय अवधि या ज़ोन को और सटीक बनाकर, या सवाल को "
+        "दोबारा पूछकर देखें।"
+    ),
+    "hinglish": (
+        "Main aapke actual orders ya policy data se iska bharosemand jawaab nahi de "
+        "paaya. Guess karne ke bajaay main yeh saaf bata raha hoon — time window ya "
+        "zone thoda specific karke, ya sawaal dobara pooch ke dekhein."
+    ),
 }
 
 
@@ -121,6 +150,15 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
         )
         citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
         result.regenerated = True
+
+        if verdict == "ungrounded":
+            # Still ungrounded after the one retry — stop trusting the
+            # model's prose and hand back the deterministic abstention
+            # message instead. No citation markers survive into it, so
+            # there's nothing left for the frontend to render as a chip.
+            raw_answer = _ABSTENTION_MESSAGES.get(response_language, _ABSTENTION_MESSAGES["english"])
+            citations, coverage = [], 0.0
+            result.abstained = True
 
     _timed("grounding", t4, result)
 

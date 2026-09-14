@@ -34,9 +34,48 @@ const ROUTE_SOURCE = {
   CLARIFY: null,
 };
 
+// Stage 2E: every grounding_verdict gets its own honest label — "grounded"
+// and "no_claims" both used to render as the same green "Verified" tag,
+// which overstates certainty for an answer that made no checkable claims
+// at all, and lumped a fully-checked answer in with a partially-checked
+// one. "ungrounded" isn't here — it's the pipeline's abstention path (see
+// pipeline.py's _ABSTENTION_MESSAGES) and gets its own early-return render
+// below, not this badge-on-a-normal-answer treatment.
+const VERDICT_META = {
+  grounded: { tag: "tag-accent", icon: "check", label: "Verified" },
+  no_claims: { tag: "tag-neutral", icon: "check", label: "No sourcing needed" },
+  partial: { tag: "tag-warn", icon: "alert", label: "Partially verified" },
+};
+
 export default function AnswerCard({ message, onCiteClick }) {
   const source = ROUTE_SOURCE[message.route_taken];
   const uniqueCitations = Array.from(new Map(message.citations.map((c) => [`${c.type}:${c.ref_id}`, c])).values());
+  const abstained = message.grounding_verdict === "ungrounded";
+
+  if (abstained) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="card elev-sm"
+        style={{
+          maxWidth: 920, padding: "16px 18px", display: "flex", gap: 12, alignItems: "flex-start",
+          border: "1px solid var(--color-warning-bg)", background: "var(--color-warning-bg)",
+        }}
+      >
+        <Icon name="alert" size={17} style={{ color: "var(--color-warning)", flex: "none", marginTop: 2 }} />
+        <div>
+          <div style={{ font: "600 13.5px var(--font-body)", color: "var(--color-warning)", marginBottom: 4 }}>
+            I don't have a confident answer to that
+          </div>
+          <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, color: "var(--color-text)" }}>
+            {message.content}
+          </p>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -113,13 +152,12 @@ export default function AnswerCard({ message, onCiteClick }) {
         </motion.div>
       )}
 
-      {message.grounding_verdict && (
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {message.grounding_verdict === "ungrounded" ? (
-            <span className="tag tag-danger" style={{ gap: 5 }}><Icon name="x" size={10} />Unverified</span>
-          ) : (
-            <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />Verified</span>
-          )}
+      {message.grounding_verdict && VERDICT_META[message.grounding_verdict] && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className={`tag ${VERDICT_META[message.grounding_verdict].tag}`} style={{ gap: 5 }}>
+            <Icon name={VERDICT_META[message.grounding_verdict].icon} size={10} />
+            {VERDICT_META[message.grounding_verdict].label}
+          </span>
           <span className="dim" style={{ fontSize: 12 }}>
             {uniqueCitations.length > 0
               ? `${uniqueCitations.filter((c) => c.verified).length} of ${uniqueCitations.length} facts double-checked against your actual data`
