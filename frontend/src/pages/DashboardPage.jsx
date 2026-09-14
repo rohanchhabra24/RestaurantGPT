@@ -247,6 +247,7 @@ export default function DashboardPage() {
     setTab("eligible");
     if (digest) {
       api.dismissDigest(digest.id).catch(() => {});
+      api.track("digest_reviewed", { new_claims_count: digest.new_claims_count, new_recoverable_amount: digest.new_recoverable_amount });
       setDigest((prev) => (prev ? { ...prev, status: "dismissed" } : prev));
     }
   }
@@ -254,6 +255,7 @@ export default function DashboardPage() {
   function dismissDigest() {
     if (!digest) return;
     api.dismissDigest(digest.id).catch(() => {});
+    api.track("digest_dismissed", { new_claims_count: digest.new_claims_count, new_recoverable_amount: digest.new_recoverable_amount });
     setDigest((prev) => (prev ? { ...prev, status: "dismissed" } : prev));
   }
 

@@ -94,4 +94,10 @@ export const api = {
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),
   markCardReviewed: (cardId) => request(`/diagnostics/cards/${cardId}/mark-reviewed`, { method: "POST" }),
+
+  // Fire-and-forget — instrumentation must never surface an error to the
+  // user or block whatever real action triggered it (see events.py's
+  // record_event, which has the same never-throw contract server-side).
+  track: (eventType, properties = {}) =>
+    request("/events", { method: "POST", body: JSON.stringify({ event_type: eventType, properties }) }).catch(() => {}),
 };

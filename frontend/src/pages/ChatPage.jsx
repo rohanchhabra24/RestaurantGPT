@@ -83,9 +83,10 @@ export default function ChatPage() {
     }
   }
 
-  async function send(content) {
+  async function send(content, source = "typed") {
     if (!content.trim() || sending) return;
     if (showIntro) dismissIntro();
+    const isFirstMessage = !activeId;
     let convId = activeId;
     if (!convId) {
       const conv = await api.createConversation();
@@ -93,6 +94,7 @@ export default function ChatPage() {
       convId = conv.id;
       setActiveId(convId);
     }
+    if (isFirstMessage) api.track("chat_message_sent", { source, is_first_message: true });
     setMessages((prev) => [...prev, { id: `local-${Date.now()}`, role: "user", content, citations: [] }]);
     setDraft("");
     setSending(true);
@@ -270,7 +272,7 @@ export default function ChatPage() {
             </div>
             <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
               {EXAMPLE_PROMPTS.map((p) => (
-                <div key={p.title} className="card elev-sm" style={{ cursor: "pointer" }} onClick={() => send(p.title)}>
+                <div key={p.title} className="card elev-sm" style={{ cursor: "pointer" }} onClick={() => send(p.title, "starter_prompt")}>
                   <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name={p.icon} size={12} />{p.kicker}</div>
                   <div className="card-title">{p.title}</div>
                   <p className="card-body">{p.body}</p>

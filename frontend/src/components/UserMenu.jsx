@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../authContext.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
 import { getTheme, setTheme } from "../theme.js";
-import { settingsApi } from "../api.js";
+import { settingsApi, api } from "../api.js";
 
 // Language *names* stay as their own autonym regardless of which UI
 // language is active — a picker translating "Hindi" into the current UI
@@ -87,6 +87,7 @@ export default function UserMenu() {
     setLanguageSaving(true);
     try {
       await settingsApi.update(next);
+      if (next !== prev) api.track("answer_language_changed", { to: next });
     } catch {
       setLanguage(prev); // revert — the toggle shouldn't claim a change that didn't save
     } finally {

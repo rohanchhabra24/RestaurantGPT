@@ -354,6 +354,24 @@ path or a page refresh on any non-root route 404s. `frontend/vercel.json`
 and `frontend/public/_redirects` cover Vercel and Netlify respectively;
 other static hosts need the equivalent rewrite rule.
 
+## Engagement instrumentation
+
+A lightweight event log (`app_events`, migration 010) — not a third-party
+analytics integration, since none is configured in this build. Three
+event types are currently recorded: `chat_message_sent` (with
+`source: "starter_prompt" | "typed"` and `is_first_message`, so it's
+answerable whether new operators lean on the example prompts or type
+their own question), `answer_language_changed` (adoption of the
+non-English Answer language setting), and `digest_reviewed` /
+`digest_dismissed` (Stage 2D's proactive compensation digest).
+`POST /api/events` records one (validated against a server-side
+allowlist, `app/services/events.py`'s `KNOWN_EVENT_TYPES` — an unknown
+event_type is dropped, not stored, so a typo can't silently fragment a
+metric); `GET /api/events/summary` returns a per-type count for the last
+30 days. Recording an event never blocks or fails the action that
+triggered it — see `record_event`'s try/except and the frontend's
+`api.track()`, which swallows its own errors.
+
 ## Notes on scope
 
 This build intentionally does not include: a scheduled worker/queue for
