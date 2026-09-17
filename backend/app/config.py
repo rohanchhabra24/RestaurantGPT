@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # Alert-only — see semantic_cache/usage_tracking. Never blocks a tenant.
     cost_alert_threshold_usd: float = 20.0
 
+    # Alert-only — see insights.check_ungrounded_alert. min_samples guards
+    # against a tiny window making the rate noisy (1 ungrounded out of 2
+    # queries is 50% but tells you nothing).
+    ungrounded_alert_threshold_pct: float = 20.0
+    ungrounded_alert_window_hours: int = 24
+    ungrounded_alert_min_samples: int = 5
+
     # Used only by seed.py, which still needs a fixed id to seed demo data
     # against before a real signup exists for it. No API route trusts this
     # anymore — restaurant_id always comes from the authenticated JWT.

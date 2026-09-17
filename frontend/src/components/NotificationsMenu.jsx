@@ -9,15 +9,19 @@ export default function NotificationsMenu() {
   const [open, setOpen] = useState(false);
   const [newCards, setNewCards] = useState([]);
   const [costAlert, setCostAlert] = useState(null);
+  const [ungroundedAlert, setUngroundedAlert] = useState(null);
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false), open);
 
   useEffect(() => {
     api.listDiagnosisCards("new").then(setNewCards).catch(() => {});
-    api.getInsightsSummary().then((d) => setCostAlert(d.cost?.over_threshold ? d.cost : null)).catch(() => {});
+    api.getInsightsSummary().then((d) => {
+      setCostAlert(d.cost?.over_threshold ? d.cost : null);
+      setUngroundedAlert(d.ungrounded_alert?.over_threshold ? d.ungrounded_alert : null);
+    }).catch(() => {});
   }, []);
 
-  const hasUnread = newCards.length > 0 || costAlert;
+  const hasUnread = newCards.length > 0 || costAlert || ungroundedAlert;
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -47,6 +51,19 @@ export default function NotificationsMenu() {
                   Month-to-date spend ${costAlert.month_to_date_usd.toFixed(2)}, over your ${costAlert.threshold_usd.toFixed(0)} threshold.
                 </div>
               </div>
+            )}
+
+            {ungroundedAlert && (
+              <Link to="/diagnoses" className="menu-item" onClick={() => setOpen(false)} style={{ alignItems: "flex-start", flexDirection: "column", gap: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-danger)" }}>
+                  <Icon name="alert" size={12} />
+                  <strong style={{ fontWeight: 600 }}>Answer confidence dropped</strong>
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>
+                  {ungroundedAlert.ungrounded_rate_pct}% of questions in the last {ungroundedAlert.window_hours}h couldn't be
+                  confidently answered — see what's missing.
+                </div>
+              </Link>
             )}
 
             {newCards.slice(0, 5).map((c) => (

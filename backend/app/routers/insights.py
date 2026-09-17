@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.auth import require_tenant
+from app.config import settings
 from app.db import get_pool
 from app.services import usage_tracking
 
@@ -19,6 +20,44 @@ router = APIRouter(prefix="/api/insights", tags=["insights"])
 
 WINDOW_DAYS = 30
 TREND_DAYS = 14
+
+
+def ungrounded_rate_over_threshold(total: int, ungrounded: int) -> tuple[float, bool]:
+    """Pure threshold check, split out for unit testing (same reasoning as
+    cluster_gaps below — no DB fixture in this test suite). A wrong price
+    or policy citation is a P0, not a quality ticket (see pipeline.py's
+    _ABSTENTION_MESSAGES) — this is the recent-window early-warning signal
+    for that, distinct from /summary's 30-day grounded_rate, which is too
+    diluted by history to catch a fresh spike quickly.
+    """
+    if total < settings.ungrounded_alert_min_samples:
+        return 0.0, False
+    rate = round(ungrounded / total * 100, 1)
+    return rate, rate >= settings.ungrounded_alert_threshold_pct
+
+
+async def check_ungrounded_alert(restaurant_id: str) -> dict:
+    pool = await get_pool()
+    rid = uuid.UUID(restaurant_id)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""select count(*) as total,
+                       count(*) filter (where grounding_verdict = 'ungrounded') as ungrounded
+                from query_traces
+                where restaurant_id = $1
+                  and created_at >= now() - interval '{settings.ungrounded_alert_window_hours} hours'""",
+            rid,
+        )
+    total, ungrounded = row["total"] or 0, row["ungrounded"] or 0
+    rate, over = ungrounded_rate_over_threshold(total, ungrounded)
+    return {
+        "window_hours": settings.ungrounded_alert_window_hours,
+        "total_queries": total,
+        "ungrounded_count": ungrounded,
+        "ungrounded_rate_pct": rate,
+        "threshold_pct": settings.ungrounded_alert_threshold_pct,
+        "over_threshold": over,
+    }
 
 
 @router.get("/summary")
@@ -65,9 +104,11 @@ async def summary(restaurant_id: str = Depends(require_tenant)):
 
     total = totals["total"] or 0
     cost_alert = await usage_tracking.check_cost_alert(restaurant_id)
+    ungrounded_alert = await check_ungrounded_alert(restaurant_id)
     return {
         "window_days": WINDOW_DAYS,
         "cost": cost_alert,
+        "ungrounded_alert": ungrounded_alert,
         "total_queries": total,
         "cache_hit_rate": round(totals["cache_hits"] / total, 3) if total else 0.0,
         "grounded_rate": round(totals["grounded_or_no_claims"] / total, 3) if total else 0.0,
