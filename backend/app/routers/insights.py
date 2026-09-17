@@ -84,11 +84,26 @@ async def summary(restaurant_id: str = Depends(require_tenant)):
         )
 
         stage_rows = await conn.fetch(
-            f"""select kv.stage, avg(kv.ms::numeric) as avg_ms
+            f"""select kv.stage, avg(kv.ms::numeric) as avg_ms,
+                       percentile_cont(0.5) within group (order by kv.ms::numeric) as p50_ms,
+                       percentile_cont(0.95) within group (order by kv.ms::numeric) as p95_ms
                 from query_traces
                 cross join lateral jsonb_each_text(latency_ms_by_stage) as kv(stage, ms)
                 where restaurant_id = $1 and created_at >= now() - interval '{WINDOW_DAYS} days'
                 group by kv.stage order by avg_ms desc""",
+            rid,
+        )
+
+        # Thumbs-up rate — the human quality signal that pairs with
+        # grounded_rate's machine-computed one (see migration 012's
+        # comment). Only counts queries someone actually rated; silence
+        # isn't counted as either up or down.
+        feedback_row = await conn.fetchrow(
+            f"""select count(*) filter (where mf.rating = 'up') as up,
+                       count(*) filter (where mf.rating = 'down') as down
+                from query_traces qt
+                join message_feedback mf on mf.query_trace_id = qt.id
+                where qt.restaurant_id = $1 and qt.created_at >= now() - interval '{WINDOW_DAYS} days'""",
             rid,
         )
 
@@ -103,6 +118,8 @@ async def summary(restaurant_id: str = Depends(require_tenant)):
         )
 
     total = totals["total"] or 0
+    up, down = feedback_row["up"] or 0, feedback_row["down"] or 0
+    rated = up + down
     cost_alert = await usage_tracking.check_cost_alert(restaurant_id)
     ungrounded_alert = await check_ungrounded_alert(restaurant_id)
     return {
@@ -113,8 +130,22 @@ async def summary(restaurant_id: str = Depends(require_tenant)):
         "cache_hit_rate": round(totals["cache_hits"] / total, 3) if total else 0.0,
         "grounded_rate": round(totals["grounded_or_no_claims"] / total, 3) if total else 0.0,
         "ungrounded_count": totals["ungrounded"],
+        "feedback": {
+            "up_count": up,
+            "down_count": down,
+            "rated_count": rated,
+            "up_rate_pct": round(up / rated * 100, 1) if rated else None,
+        },
         "route_distribution": [{"route": r["route_taken"], "count": r["n"]} for r in route_rows],
-        "avg_latency_by_stage": [{"stage": r["stage"], "avg_ms": round(float(r["avg_ms"]), 1)} for r in stage_rows],
+        "latency_by_stage": [
+            {
+                "stage": r["stage"],
+                "avg_ms": round(float(r["avg_ms"]), 1),
+                "p50_ms": round(float(r["p50_ms"]), 1),
+                "p95_ms": round(float(r["p95_ms"]), 1),
+            }
+            for r in stage_rows
+        ],
         "groundedness_trend": [
             {
                 "date": r["day"].date().isoformat(),

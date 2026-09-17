@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
@@ -7,6 +7,8 @@ import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
 import HeroStatTile from "../components/HeroStatTile.jsx";
 import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
 import CompensationDigestBanner from "../components/CompensationDigestBanner.jsx";
+import AiPerformancePopover from "../components/AiPerformancePopover.jsx";
+import useClickOutside from "../hooks/useClickOutside.js";
 import { api } from "../api.js";
 
 const TABS = [
@@ -212,7 +214,10 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult }) {
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState(null);
-  const [accuracy, setAccuracy] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [perfOpen, setPerfOpen] = useState(false);
+  const perfRef = useRef(null);
+  useClickOutside(perfRef, () => setPerfOpen(false), perfOpen);
   const [tab, setTab] = useState("eligible");
   const [orders, setOrders] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -229,7 +234,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api.getOperationsSummary().then(setKpis).catch(() => {});
-    api.getInsightsSummary().then((d) => setAccuracy(d.grounded_rate)).catch(() => {});
+    api.getInsightsSummary().then(setSummary).catch(() => {});
   }, []);
 
   // Proactive digest (Stage 2D) — computed lazily server-side, at most once
@@ -356,7 +361,22 @@ export default function DashboardPage() {
       <div className="dashboard-secondary-row">
         <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
         <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-        <RoundedKpiTile label="Answer accuracy" value={accuracy != null ? accuracy * 100 : null} icon="check" />
+        <div ref={perfRef} style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setPerfOpen((v) => !v)}
+            style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+            aria-label="Show AI performance detail"
+            aria-expanded={perfOpen}
+          >
+            <RoundedKpiTile
+              label="Answer accuracy"
+              value={summary ? summary.grounded_rate * 100 : null}
+              icon="check"
+            />
+          </button>
+          <AiPerformancePopover open={perfOpen} summary={summary} />
+        </div>
         <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
         <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
         <StatTile
