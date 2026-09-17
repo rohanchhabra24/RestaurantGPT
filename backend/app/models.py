@@ -38,6 +38,7 @@ class MessageOut(BaseModel):
     investigation_steps: list[str] = []
     from_cache: bool = False
     cache_similarity: float | None = None
+    feedback: Literal["up", "down"] | None = None
 
 
 class ConversationOut(BaseModel):

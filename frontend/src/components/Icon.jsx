@@ -75,6 +75,18 @@ const PATHS = {
       <path d="M16 8.5h2.5" />
     </>
   ),
+  thumbsup: (
+    <>
+      <path d="M8 10.5v10h9.2a2 2 0 002-1.6l1.3-6a2 2 0 00-2-2.4H14l.8-4.2a1.8 1.8 0 00-3.2-1.4L8 10.5z" />
+      <path d="M8 10.5H5a1 1 0 00-1 1V19a1 1 0 001 1h3" />
+    </>
+  ),
+  thumbsdown: (
+    <>
+      <path d="M16 13.5v-10H6.8a2 2 0 00-2 1.6l-1.3 6a2 2 0 002 2.4H10l-.8 4.2a1.8 1.8 0 003.2 1.4L16 13.5z" />
+      <path d="M16 13.5h3a1 1 0 001-1V5a1 1 0 00-1-1h-3" />
+    </>
+  ),
 };
 
 export default function Icon({ name, size = 14, className = "", style = {} }) {

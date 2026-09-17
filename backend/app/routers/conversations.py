@@ -69,15 +69,51 @@ async def _owned_conversation(conn, conversation_id: uuid.UUID, restaurant_id: u
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageOut])
 async def get_messages(conversation_id: str, restaurant_id: str = Depends(require_tenant)):
+    """Reloading a conversation (switching chats, refreshing the page) used
+    to come back with only id/role/content/citations — every badge
+    AnswerCard renders from route_taken/grounding_verdict/investigation_steps
+    silently vanished, because this query never joined query_traces even
+    though every assistant message has a matching row via message_id. Fixed
+    here rather than left alone because thumbs-up/down (message_feedback)
+    needs trace_id to know what to attach to on reload anyway — so both the
+    badges and feedback state now survive a reload together.
+
+    data_table and cache_similarity are the two MessageOut fields that
+    genuinely can't be recovered this way: only sql_result_row_count (not
+    the actual rows) and no similarity score at all are persisted in
+    query_traces, so those stay at their defaults on reload.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         await _owned_conversation(conn, uuid.UUID(conversation_id), uuid.UUID(restaurant_id))
         rows = await conn.fetch(
-            "select id, role, content, citations from messages where conversation_id = $1 order by created_at asc",
+            """select m.id, m.role, m.content, m.citations,
+                      qt.id as trace_id, qt.route_taken, qt.generated_sql, qt.grounding_verdict,
+                      qt.citation_coverage, qt.latency_ms_by_stage, qt.investigation_steps,
+                      qt.served_from_cache, mf.rating as feedback_rating
+               from messages m
+               left join query_traces qt on qt.message_id = m.id
+               left join message_feedback mf on mf.query_trace_id = qt.id
+               where m.conversation_id = $1
+               order by m.created_at asc""",
             uuid.UUID(conversation_id),
         )
     return [
-        MessageOut(id=str(r["id"]), role=r["role"], content=r["content"], citations=json.loads(r["citations"]))
+        MessageOut(
+            id=str(r["id"]),
+            role=r["role"],
+            content=r["content"],
+            citations=json.loads(r["citations"]),
+            route_taken=r["route_taken"],
+            generated_sql=r["generated_sql"],
+            grounding_verdict=r["grounding_verdict"],
+            citation_coverage=r["citation_coverage"],
+            latency_ms_by_stage=json.loads(r["latency_ms_by_stage"]) if r["latency_ms_by_stage"] else {},
+            trace_id=str(r["trace_id"]) if r["trace_id"] else None,
+            investigation_steps=json.loads(r["investigation_steps"]) if r["investigation_steps"] else [],
+            from_cache=bool(r["served_from_cache"]),
+            feedback=r["feedback_rating"],
+        )
         for r in rows
     ]
 

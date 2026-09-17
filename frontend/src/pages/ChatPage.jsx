@@ -153,6 +153,20 @@ export default function ChatPage() {
     }
   }
 
+  // Tapping the same thumb again clears it (a "changed my mind, no
+  // opinion" state, not just up<->down) — optimistic update so the tap
+  // feels instant, reverted if the request actually fails.
+  async function handleFeedback(message, rating) {
+    const next = message.feedback === rating ? null : rating;
+    setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, feedback: next } : m)));
+    try {
+      if (next) await api.setFeedback(message.trace_id, next);
+      else await api.clearFeedback(message.trace_id);
+    } catch {
+      setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, feedback: message.feedback } : m)));
+    }
+  }
+
   async function checkCompensation() {
     setCompBusy(true);
     setCompError(null);
@@ -338,7 +352,7 @@ export default function ChatPage() {
                   {m.content}
                 </div>
               ) : (
-                <AnswerCard key={m.id} message={m} onCiteClick={setDrawerCitation} />
+                <AnswerCard key={m.id} message={m} onCiteClick={setDrawerCitation} onFeedback={(rating) => handleFeedback(m, rating)} />
               )
             )}
             {sending && (

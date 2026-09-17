@@ -116,6 +116,9 @@ export const api = {
   listOrders: (filter = "all", limit = 100) => request(`/orders?filter=${filter}&limit=${limit}`),
   searchOrders: (q, limit = 8) => request(`/orders?filter=all&limit=${limit}&q=${encodeURIComponent(q)}`),
 
+  setFeedback: (traceId, rating) => request(`/traces/${traceId}/feedback`, { method: "PUT", body: JSON.stringify({ rating }) }),
+  clearFeedback: (traceId) => request(`/traces/${traceId}/feedback`, { method: "DELETE" }),
+
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),
   markCardReviewed: (cardId) => request(`/diagnostics/cards/${cardId}/mark-reviewed`, { method: "POST" }),

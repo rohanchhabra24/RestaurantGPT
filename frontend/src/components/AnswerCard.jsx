@@ -47,7 +47,37 @@ const VERDICT_META = {
   partial: { tag: "tag-warn", icon: "alert", label: "Partially verified" },
 };
 
-export default function AnswerCard({ message, onCiteClick }) {
+// Thumbs up/down — the human quality signal that pairs with the grounding
+// verdict's machine-computed one. Sits in the same small-icon, tap-to-act
+// register as the citation chips just below, not a new UI paradigm.
+function FeedbackButtons({ feedback, onFeedback }) {
+  return (
+    <div style={{ display: "flex", gap: 2, marginLeft: "auto" }}>
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon"
+        aria-label="Good answer"
+        aria-pressed={feedback === "up"}
+        onClick={() => onFeedback("up")}
+        style={{ width: 26, height: 26, color: feedback === "up" ? "var(--color-accent)" : "var(--color-neutral-500)" }}
+      >
+        <Icon name="thumbsup" size={13} />
+      </button>
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon"
+        aria-label="Bad answer"
+        aria-pressed={feedback === "down"}
+        onClick={() => onFeedback("down")}
+        style={{ width: 26, height: 26, color: feedback === "down" ? "var(--color-danger)" : "var(--color-neutral-500)" }}
+      >
+        <Icon name="thumbsdown" size={13} />
+      </button>
+    </div>
+  );
+}
+
+export default function AnswerCard({ message, onCiteClick, onFeedback }) {
   const source = ROUTE_SOURCE[message.route_taken];
   const uniqueCitations = Array.from(new Map(message.citations.map((c) => [`${c.type}:${c.ref_id}`, c])).values());
   const abstained = message.grounding_verdict === "ungrounded";
@@ -163,6 +193,9 @@ export default function AnswerCard({ message, onCiteClick }) {
               ? `${uniqueCitations.filter((c) => c.verified).length} of ${uniqueCitations.length} facts double-checked against your actual data`
               : "Nothing in this answer needed a source"}
           </span>
+          {message.trace_id && onFeedback && (
+            <FeedbackButtons feedback={message.feedback} onFeedback={onFeedback} />
+          )}
         </motion.div>
       )}
 
