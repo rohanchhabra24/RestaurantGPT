@@ -5,6 +5,7 @@ Nothing here is synthetic; a fresh install just shows zeros until real
 queries accumulate.
 """
 
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -246,4 +247,97 @@ async def order_trends(
             "orders": pct_delta(orders_total, prev_orders),
             "revenue": pct_delta(revenue_total, prev_revenue),
         },
+    }
+
+
+KNOWLEDGE_GAP_WINDOW_DAYS = 30
+KNOWLEDGE_GAP_LIMIT = 20
+
+
+def _normalize_question(question: str) -> str:
+    """Groups near-duplicate phrasings ("What's your refund policy?" vs.
+    "whats your refund policy") into the same cluster. This is deliberately
+    simple exact-normalized-text matching, not semantic/embedding
+    clustering — two questions that mean the same thing but use different
+    words still land in separate clusters. That's an honest limitation to
+    state up front rather than silently overclaim "AI clustering."
+    """
+    normalized = question.strip().lower()
+    normalized = re.sub(r"[^\w\s]", "", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def cluster_gaps(rows: list[tuple[str, datetime]]) -> list[dict]:
+    """Pure aggregation step, split out from knowledge_gaps() below so it's
+    unit-testable without a live database (this repo's test suite has no DB
+    fixture — see tests/conftest.py — every other insights computation in
+    this file is inline SQL for the same reason, but this one has enough
+    branching logic to be worth pulling out and testing directly)."""
+    clusters: dict[str, dict] = {}
+    for question, created_at in rows:
+        key = _normalize_question(question)
+        if not key:
+            continue
+        cluster = clusters.setdefault(key, {
+            "example_question": question,
+            "occurrences": 0,
+            "first_seen": created_at,
+            "last_seen": created_at,
+        })
+        cluster["occurrences"] += 1
+        if created_at < cluster["first_seen"]:
+            cluster["first_seen"] = created_at
+        if created_at > cluster["last_seen"]:
+            cluster["last_seen"] = created_at
+
+    return sorted(clusters.values(), key=lambda c: (c["occurrences"], c["last_seen"]), reverse=True)[:KNOWLEDGE_GAP_LIMIT]
+
+
+@router.get("/knowledge-gaps")
+async def knowledge_gaps(restaurant_id: str = Depends(require_tenant)):
+    """Ranked list of questions RestaurantGPT couldn't ground a confident
+    answer to — the gap between what owners ask and what the ingested
+    policy/order data actually covers. Every row here already exists in
+    query_traces (grounding_verdict='ungrounded'); this just aggregates it
+    by normalized question text so the same unanswerable question asked
+    five times shows up as one cluster of 5, not five separate rows.
+    """
+    pool = await get_pool()
+    rid = uuid.UUID(restaurant_id)
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""select question, created_at
+                from query_traces
+                where restaurant_id = $1 and grounding_verdict = 'ungrounded'
+                  and created_at >= now() - interval '{KNOWLEDGE_GAP_WINDOW_DAYS} days'
+                order by created_at desc""",
+            rid,
+        )
+        total_row = await conn.fetchrow(
+            f"""select count(*) as total,
+                       count(*) filter (where grounding_verdict = 'ungrounded') as ungrounded
+                from query_traces
+                where restaurant_id = $1
+                  and created_at >= now() - interval '{KNOWLEDGE_GAP_WINDOW_DAYS} days'""",
+            rid,
+        )
+
+    ranked = cluster_gaps([(r["question"], r["created_at"]) for r in rows])
+
+    total = total_row["total"] or 0
+    return {
+        "window_days": KNOWLEDGE_GAP_WINDOW_DAYS,
+        "total_queries": total,
+        "ungrounded_count": total_row["ungrounded"],
+        "ungrounded_rate_pct": round(total_row["ungrounded"] / total * 100, 1) if total else 0.0,
+        "gaps": [
+            {
+                "example_question": c["example_question"],
+                "occurrences": c["occurrences"],
+                "first_seen": c["first_seen"].isoformat(),
+                "last_seen": c["last_seen"].isoformat(),
+            }
+            for c in ranked
+        ],
     }

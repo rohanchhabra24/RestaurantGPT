@@ -103,6 +103,7 @@ export const api = {
 
   getInsightsSummary: () => request("/insights/summary"),
   getOperationsSummary: () => request("/insights/operations"),
+  getKnowledgeGaps: () => request("/insights/knowledge-gaps"),
   getOrderTrends: (range, from, to) => {
     const params = new URLSearchParams({ range });
     if (range === "custom" && from && to) {
