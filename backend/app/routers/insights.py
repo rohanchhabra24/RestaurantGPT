@@ -145,7 +145,9 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
                       count(*) filter (
                         where delivery_time_seconds is not null and sla_target_seconds is not null
                           and delivery_time_seconds > sla_target_seconds
-                      ) as sla_breaches_today
+                      ) as sla_breaches_today,
+                      avg(prep_time_seconds) filter (where prep_time_seconds is not null) as avg_prep_time_seconds,
+                      coalesce(sum(total_amount) filter (where is_cancelled), 0) as lost_revenue_today
                from orders
                where restaurant_id = $1 and placed_at >= date_trunc('day', now())""",
             rid,
@@ -173,6 +175,8 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
         "window_days": OPERATIONS_TREND_DAYS,
         "orders_today": today["orders_today"],
         "sla_breaches_today": today["sla_breaches_today"],
+        "avg_prep_time_seconds": round(float(today["avg_prep_time_seconds"]), 0) if today["avg_prep_time_seconds"] is not None else None,
+        "lost_revenue_today": float(today["lost_revenue_today"]),
         "avg_delivery_delay_seconds": round(float(trend["avg_delay_seconds"]), 0) if trend["avg_delay_seconds"] is not None else None,
         "cancellation_rate_pct": round(trend["cancelled"] / trend_total * 100, 1) if trend_total else 0.0,
         "compensation_identified_total": float(compensation_identified),

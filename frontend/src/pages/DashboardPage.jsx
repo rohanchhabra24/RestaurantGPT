@@ -355,6 +355,12 @@ export default function DashboardPage() {
         <RoundedKpiTile label="Answer accuracy" value={accuracy != null ? accuracy * 100 : null} icon="check" />
         <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
         <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
+        <StatTile
+          label="Avg. prep time" icon="clock"
+          value={kpis?.avg_prep_time_seconds != null ? kpis.avg_prep_time_seconds / 60 : null}
+          decimals={1} suffix=" min"
+        />
+        <StatTile label="Lost to cancellations today" value={kpis?.lost_revenue_today} decimals={0} icon="x" prefix="₹" />
       </div>
 
       <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
