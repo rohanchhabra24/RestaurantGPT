@@ -323,6 +323,10 @@ export default function DashboardPage() {
   const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
   const revenuePoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.revenue })) ?? [];
   const orderPoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.orders })) ?? [];
+  // Derived client-side from the same totals the hero tiles already use —
+  // no reason to make the backend recompute revenue ÷ orders when both are
+  // already sitting right here.
+  const aov = trends?.totals.orders ? trends.totals.revenue / trends.totals.orders : null;
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "24px clamp(16px, 5vw, 32px) 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
@@ -361,6 +365,7 @@ export default function DashboardPage() {
           decimals={1} suffix=" min"
         />
         <StatTile label="Lost to cancellations today" value={kpis?.lost_revenue_today} decimals={0} icon="x" prefix="₹" />
+        <StatTile label="Average order value" value={aov} decimals={0} icon="layers" prefix="₹" />
       </div>
 
       <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
