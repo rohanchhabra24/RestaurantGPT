@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button.jsx";
 import { Card } from "../components/ui/card.jsx";
 import { Badge } from "../components/ui/badge.jsx";
 import Icon from "../components/Icon.jsx";
+import BookDemoDialog from "../components/BookDemoDialog.jsx";
 
 // Trial: this page is rebuilt on Tailwind + shadcn-style components
 // (src/components/ui/) instead of the hand-rolled theme.css classes the
@@ -14,13 +16,10 @@ const INTEGRATIONS = ["Swiggy", "Zomato", "Petpooja", "Dunzo", "Your own POS"];
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [demoDialog, setDemoDialog] = useState(null); // null | "message" | "call"
 
   function getStarted() {
     navigate("/login?mode=signup");
-  }
-
-  function scrollToCta() {
-    document.getElementById("get-started")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   return (
@@ -61,7 +60,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button onClick={getStarted}>Get started</Button>
-              <Button variant="ghost" onClick={scrollToCta}>Book a demo</Button>
+              <Button variant="ghost" onClick={() => setDemoDialog("message")}>Book a demo</Button>
             </div>
           </div>
 
@@ -139,7 +138,10 @@ export default function LandingPage() {
             Connect your order exports and start asking questions today.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={getStarted}>Get started</Button>
+            <Button variant="outline" onClick={() => setDemoDialog("call")}>
+              <Icon name="clock" size={14} />
+              Book a call
+            </Button>
           </div>
         </section>
 
@@ -147,6 +149,12 @@ export default function LandingPage() {
           RestaurantGPT — built on shadcn/ui (trial — the rest of the app uses the hand-rolled theme).
         </div>
       </div>
+
+      <BookDemoDialog
+        open={demoDialog !== null}
+        onOpenChange={(next) => setDemoDialog(next ? (demoDialog ?? "message") : null)}
+        defaultTab={demoDialog ?? "message"}
+      />
     </div>
   );
 }
