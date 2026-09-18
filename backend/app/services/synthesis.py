@@ -143,3 +143,15 @@ your answer should explain the root cause using those findings, not just restate
 
 def extract_citations(answer_text: str) -> list[dict]:
     return [{"type": m.group(1).lower(), "ref_id": m.group(2)} for m in CITATION_RE.finditer(answer_text)]
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+async def generate_greeting(question: str, timezone: str, response_language: str = "english", usage_sink: list | None = None) -> str:
+    now = datetime.now(ZoneInfo(timezone))
+    hour = now.hour
+    time_context = "morning" if 5 <= hour < 12 else "afternoon" if 12 <= hour < 17 else "evening" if 17 <= hour < 21 else "night"
+    
+    prompt = f"The user said: '{question}'. The local time is {now.strftime('%I:%M %p')} ({time_context}). Respond as a helpful restaurant operations assistant. Wish them well for the day or night (e.g., 'Hope you have a great day of sales!' or 'Hope it was a good day for you!'). Keep it very brief, conversational, and warm."
+    
+    return await complete(settings.synthesis_model, _system_prompt(response_language), prompt, max_tokens=100, usage_sink=usage_sink)

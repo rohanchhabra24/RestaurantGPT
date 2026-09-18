@@ -77,18 +77,14 @@ async def _insert_mapped_rows(mapped: list["data_mapper.MappedRow"], restaurant_
     count = 0
     async with pool.acquire() as conn:
         async with conn.transaction():
+            values = []
             for row in mapped:
                 # aggregator_order_id/placed_at are the only columns a row
                 # can't exist without — everything else degrades to a
                 # sensible default rather than dropping the row.
                 if row.aggregator_order_id is None or row.placed_at is None:
                     continue
-                await conn.execute(
-                    """insert into orders
-                       (restaurant_id, aggregator_order_id, placed_at, zone, platform, status,
-                        total_amount, prep_time_seconds, delivery_time_seconds, is_cancelled,
-                        cancellation_reason, weather_flag)
-                       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+                values.append((
                     rid,
                     row.aggregator_order_id,
                     row.placed_at,
@@ -101,8 +97,17 @@ async def _insert_mapped_rows(mapped: list["data_mapper.MappedRow"], restaurant_
                     (row.status or "") == "cancelled",
                     row.cancellation_reason,
                     row.weather_flag,
+                ))
+            if values:
+                await conn.executemany(
+                    """insert into orders
+                       (restaurant_id, aggregator_order_id, placed_at, zone, platform, status,
+                        total_amount, prep_time_seconds, delivery_time_seconds, is_cancelled,
+                        cancellation_reason, weather_flag)
+                       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
+                    values
                 )
-                count += 1
+                count = len(values)
             await _bump_data_version(conn, rid)
     if count == 0 and mapped:
         raise IngestionError(

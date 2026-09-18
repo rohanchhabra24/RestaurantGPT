@@ -29,7 +29,20 @@ async function request(path, options = {}) {
     const res = await fetch(`${BASE}${path}`, { headers, ...options });
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
-      throw new Error(`${res.status} ${path}: ${text}`);
+      // eslint-disable-next-line no-console
+      console.error(`[API Error] ${res.status} ${path}:`, text);
+      
+      let userMessage = "Something went wrong on our end. Please try again.";
+      if (res.status < 500) {
+        try {
+          const parsed = JSON.parse(text);
+          if (typeof parsed.detail === "string") userMessage = parsed.detail;
+          else userMessage = "Please check your inputs and try again.";
+        } catch (e) {
+          userMessage = "Please check your inputs and try again.";
+        }
+      }
+      throw new Error(userMessage);
     }
     return res.json();
   })();

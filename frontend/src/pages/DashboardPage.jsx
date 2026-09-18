@@ -361,6 +361,7 @@ export default function DashboardPage() {
       <div className="dashboard-secondary-row">
         <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
         <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
+        <ActivityTile label="Orders today" value={kpis?.orders_today} icon="db" />
         <div ref={perfRef} style={{ position: "relative" }}>
           <button
             type="button"

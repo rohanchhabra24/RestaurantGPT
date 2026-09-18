@@ -8,7 +8,7 @@ narrow: classify and extract slots, nothing else.
 from app.config import settings
 from app.services.claude_client import complete_json
 
-ROUTES = ("SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY")
+ROUTES = ("SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY", "GREETING")
 
 SYSTEM = """You are the intent router for a restaurant operations assistant.
 Classify the operator's question into exactly one route:
@@ -22,6 +22,7 @@ Classify the operator's question into exactly one route:
   needs multi-step investigation (quantify the change, find what correlates
   with it, then check policy), not a single lookup. Trigger words: "why",
   "spike", "increase", "dropped", "trend", "what's driving", "root cause".
+- GREETING: The user is saying hello, hi, good morning, or making casual conversation not related to operations.
 - CLARIFY: too ambiguous to route (no clear time window, metric, or subject).
 
 Also extract slots if present: date_range (e.g. "yesterday", "last week", or an

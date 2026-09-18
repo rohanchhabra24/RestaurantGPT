@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import NavBar from "./components/NavBar.jsx";
 import { AuthProvider, useAuth } from "./authContext.jsx";
 import { onboardingApi } from "./api.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
+import SoundEffects from "./components/SoundEffects.jsx";
 
 // Route-level code splitting — each page ships as its own chunk instead of
 // one bundle everyone downloads regardless of which page (or whether
@@ -48,6 +49,7 @@ function AuthedApp() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/sources" element={<DataSourcesPage />} />
           <Route path="/diagnoses" element={<DiagnosesPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
     </div>
@@ -86,6 +88,7 @@ export default function App() {
   if (!isSupabaseConfigured) return <ConfigErrorScreen />;
   return (
     <AuthProvider>
+      <SoundEffects />
       <Gate />
     </AuthProvider>
   );

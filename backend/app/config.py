@@ -8,10 +8,10 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str = ""
 
-    anthropic_api_key: str
-    router_model: str = "claude-haiku-4-5"
-    sql_model: str = "claude-sonnet-5"
-    synthesis_model: str = "claude-sonnet-5"
+    groq_api_key: str
+    router_model: str = "openai/gpt-oss-20b"
+    sql_model: str = "openai/gpt-oss-120b"
+    synthesis_model: str = "openai/gpt-oss-120b"
 
     # Per-tenant rate limit (requests per rolling window). Postgres-backed,
     # applied once a request is authenticated *and* onboarded — this is the

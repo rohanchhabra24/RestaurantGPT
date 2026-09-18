@@ -144,10 +144,6 @@ export default function LandingPage() {
             </Button>
           </div>
         </section>
-
-        <div className="pt-8 text-[12.5px] text-[var(--color-neutral-600)]">
-          RestaurantGPT — built on shadcn/ui (trial — the rest of the app uses the hand-rolled theme).
-        </div>
       </div>
 
       <BookDemoDialog

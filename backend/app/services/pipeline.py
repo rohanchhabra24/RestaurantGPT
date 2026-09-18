@@ -117,6 +117,17 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
         result.citation_coverage = 1.0
         return result
 
+    if result.route_taken == "GREETING":
+        from app.db import get_pool
+        import uuid
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            tz = await conn.fetchval("select timezone from restaurants where id = $1", uuid.UUID(restaurant_id))
+        result.answer_text = await synthesis.generate_greeting(question, tz or "Asia/Kolkata", response_language, result.usage)
+        result.grounding_verdict = "no_claims"
+        result.citation_coverage = 1.0
+        return result
+
     investigation_steps_text = None
 
     # HYBRID needs both SQL and retrieval, and neither depends on the
@@ -151,6 +162,12 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
 
     t4 = time.perf_counter()
     citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
+
+    if verdict == "no_claims" and coverage == 1.0 and not citations:
+        if not result.sql_rows and not result.chunks:
+            # Overwrite the blunt "Insufficient data." message with a friendly abstention
+            raw_answer = _ABSTENTION_MESSAGES.get(response_language, _ABSTENTION_MESSAGES["english"])
+            result.abstained = True
 
     if verdict == "ungrounded":
         # One retry with the failure surfaced, per product.md step 9 —

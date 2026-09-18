@@ -14,37 +14,37 @@ export default function RoundedKpiTile({ label, value, icon, size = 56, stroke =
   const offset = circumference * (1 - pct / 100);
 
   return (
-    <div className="rounded-kpi-tile">
-      <svg className="rounded-kpi-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="var(--color-divider)"
-          strokeWidth={stroke}
-        />
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={danger ? "var(--color-danger)" : "var(--color-accent)"}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.9, ease: [0.22, 0.9, 0.28, 1] }}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <div className="rounded-kpi-body">
-        <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {icon && <Icon name={icon} size={11} />}
-          {label}
-        </div>
-        <div style={{ font: "600 20px var(--font-body)" }}>
+    <div className="card elev-sm" style={{ padding: 16, gap: 12 }}>
+      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {icon && <Icon name={icon} size={11} />}
+        {label}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <svg className="rounded-kpi-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--color-divider)"
+            strokeWidth={stroke}
+          />
+          <motion.circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke={danger ? "var(--color-danger)" : "var(--color-accent)"}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 0.9, ease: [0.22, 0.9, 0.28, 1] }}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </svg>
+        <div style={{ font: "600 24px var(--font-body)" }}>
           <CountUp value={value ?? 0} decimals={1} suffix="%" />
         </div>
       </div>
