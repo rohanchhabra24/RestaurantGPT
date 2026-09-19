@@ -1,13 +1,27 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient.js";
-import { setAccessToken } from "./api.js";
+import { setAccessToken, setUnauthorizedHandler } from "./api.js";
 
 const AuthContext = createContext(null);
+
+// Read by LoginPage to show a one-line reason instead of dropping someone
+// back at a bare sign-in form with no explanation for why they're there.
+export const SESSION_EXPIRED_KEY = "rgpt_session_expired";
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = still loading
 
   useEffect(() => {
+    // api.js calls this when a request 401s and there's a token on file —
+    // see the comment there for why this can happen even though Supabase
+    // normally refreshes tokens proactively on its own. Forcing a real
+    // sign-out (not just clearing local state) matters here: it also
+    // revokes the now-suspect session with Supabase itself.
+    setUnauthorizedHandler(() => {
+      sessionStorage.setItem(SESSION_EXPIRED_KEY, "1");
+      supabase.auth.signOut();
+    });
+
     supabase.auth.getSession()
       .then(({ data }) => {
         setSession(data.session ?? null);

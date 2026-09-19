@@ -5,8 +5,31 @@ const BASE = "/api";
 // there's exactly one active session per tab, and every request needs it.
 let currentAccessToken = null;
 
+// Registered by authContext.jsx — a 401 means the token this module is
+// holding is no longer valid (expired, revoked, or the backend's JWT
+// secret rotated). Supabase's own client normally refreshes tokens
+// proactively in the background, so this is specifically for the cases
+// it can't catch (the refresh token itself invalid, a signature/secret
+// mismatch). Until this existed, nothing reacted to a 401 at all: pages
+// just kept whatever stale data they'd last rendered — indistinguishable
+// from a real empty account — with no path back to a working session
+// short of a manual reload, which would just resubmit the same expired
+// token again.
+let unauthorizedHandler = null;
+let handlingUnauthorized = false;
+
+export function setUnauthorizedHandler(fn) {
+  unauthorizedHandler = fn;
+}
+
 export function setAccessToken(token) {
   currentAccessToken = token;
+  // A fresh token (a new sign-in, or Supabase's own background refresh
+  // succeeding) means whatever unauthorized episode this was guarding
+  // against is over — clear the guard so a *future* 401 can trigger the
+  // handler again instead of being silently ignored for the rest of the
+  // tab's lifetime.
+  handlingUnauthorized = false;
 }
 
 // Dedupes identical concurrent GETs (e.g. Sidebar and DashboardPage both
@@ -31,7 +54,17 @@ async function request(path, options = {}) {
       const text = await res.text().catch(() => res.statusText);
       // eslint-disable-next-line no-console
       console.error(`[API Error] ${res.status} ${path}:`, text);
-      
+
+      if (res.status === 401 && currentAccessToken && !handlingUnauthorized) {
+        // Guarded so a burst of concurrent requests failing on the same
+        // expired token (common — several components fetch on the same
+        // page load) triggers this once, not once per request. Checking
+        // currentAccessToken also skips this for a 401 that happens
+        // simply because no one's signed in yet (nothing to sign out of).
+        handlingUnauthorized = true;
+        unauthorizedHandler?.();
+      }
+
       let userMessage = "Something went wrong on our end. Please try again.";
       if (res.status < 500) {
         try {

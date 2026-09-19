@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import Icon from "../components/Icon.jsx";
-import { useAuth } from "../authContext.jsx";
+import { useAuth, SESSION_EXPIRED_KEY } from "../authContext.jsx";
 
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
@@ -14,6 +13,22 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [signupMessage, setSignupMessage] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Set by api.js's unauthorized handler (authContext.jsx) right before
+  // forcing a sign-out on a 401 — read once and cleared immediately so it
+  // doesn't reappear on a later, unrelated visit to this page. This has
+  // to be an effect, not a lazy useState initializer: React 18
+  // StrictMode double-invokes initializers in dev to catch exactly this
+  // kind of impurity, and a side effect (clearing sessionStorage) inside
+  // one meant the second invocation read it as already-cleared and the
+  // banner silently never showed.
+  useEffect(() => {
+    if (sessionStorage.getItem(SESSION_EXPIRED_KEY) === "1") {
+      sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+      setSessionExpired(true);
+    }
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -53,17 +68,20 @@ export default function LoginPage() {
       }}
     >
       <div className="card elev-lg" style={{ width: 360, maxWidth: "100%", padding: 28 }}>
-        <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, textDecoration: "none", color: "inherit", width: "fit-content" }}>
-          <span style={{ width: 24, height: 24, borderRadius: 6, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>RestaurantGPT</span>
+        <Link to="/" style={{ display: "flex", alignItems: "center", marginBottom: 20, width: "fit-content" }}>
+          <img src="/logo.png" alt="RestaurantGPT" style={{ height: 22, objectFit: "contain" }} />
         </Link>
 
         <h2 style={{ margin: "0 0 4px", fontSize: 17 }}>{mode === "signin" ? "Sign in" : "Create an account"}</h2>
         <p className="dim" style={{ margin: "0 0 18px", fontSize: 13 }}>
           {mode === "signin" ? "Welcome back." : "You'll set up your restaurant next."}
         </p>
+
+        {sessionExpired && (
+          <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", marginBottom: 10 }}>
+            Your session expired — please sign in again.
+          </div>
+        )}
 
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input
