@@ -1,7 +1,8 @@
 import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth import AuthContext, get_current_user
 from app.config import settings
@@ -21,6 +22,21 @@ class CreateRestaurantIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     aggregator_platform: str = Field(default="multi", max_length=50)
     timezone: str = Field(default="Asia/Kolkata", max_length=50)
+
+    @field_validator("timezone")
+    @classmethod
+    def _timezone_must_be_a_real_iana_name(cls, v: str) -> str:
+        # The frontend never lets a user type this in — it always sends
+        # the default — but the API itself is a public surface, and an
+        # unvalidated free-text value here would otherwise sit unnoticed
+        # until synthesis.generate_greeting's ZoneInfo(timezone) call 500s
+        # on it. Rejected here instead, with a clear 422, at the one point
+        # this value is ever written.
+        try:
+            ZoneInfo(v)
+        except ZoneInfoNotFoundError:
+            raise ValueError(f"{v!r} is not a valid IANA timezone name (e.g. 'Asia/Kolkata')")
+        return v
 
 
 @router.post("/restaurant")

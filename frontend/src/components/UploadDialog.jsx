@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Check } from "lucide-react";
 import Icon from "./Icon.jsx";
 import MappingReview from "./MappingReview.jsx";
+import Modal from "./Modal.jsx";
 import MorphButton from "./MorphButton.jsx";
 import { api } from "../api.js";
 
@@ -75,38 +75,25 @@ export default function UploadDialog({ onClose, onIndexed }) {
   }
 
   if (pendingMapping) {
-    // Portaled straight to <body> — this dialog can be opened from inside
-    // Topbar.jsx, which has backdrop-filter on it, and per spec that makes
-    // it a containing block for any position:fixed descendant. Without the
-    // portal, .dialog-backdrop's "fixed, full viewport" positioning was
-    // actually relative to the 56px-tall topbar instead of the real
-    // viewport (confirmed: its own box measured 55px tall), squeezing the
-    // whole dialog into a sliver at the very top of the page.
-    return createPortal(
-      <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="dialog" style={{ width: 640 }}>
-          <div className="dialog-title">Review column mapping — {pendingMapping.file.name}</div>
-          <div className="dialog-body" style={{ gap: 0 }}>
-            {error && <div className="tag tag-danger" style={{ marginBottom: 14 }}>{error}</div>}
-            <MappingReview
-              headers={pendingMapping.headers}
-              sampleRows={pendingMapping.sample_rows}
-              proposedMapping={pendingMapping.proposed_mapping}
-              busy={busy}
-              onConfirm={confirmMapping}
-              onCancel={() => setPendingMapping(null)}
-            />
-          </div>
+    return (
+      <Modal onClose={onClose} title={`Review column mapping — ${pendingMapping.file.name}`} width={640}>
+        <div className="dialog-body" style={{ gap: 0 }}>
+          {error && <div className="tag tag-danger" style={{ marginBottom: 14 }}>{error}</div>}
+          <MappingReview
+            headers={pendingMapping.headers}
+            sampleRows={pendingMapping.sample_rows}
+            proposedMapping={pendingMapping.proposed_mapping}
+            busy={busy}
+            onConfirm={confirmMapping}
+            onCancel={() => setPendingMapping(null)}
+          />
         </div>
-      </div>,
-      document.body,
+      </Modal>
     );
   }
 
-  return createPortal(
-    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" style={{ width: 560 }}>
-        <div className="dialog-title">Upload operational data</div>
+  return (
+    <Modal onClose={onClose} title="Upload operational data" width={560}>
         <div className="dialog-body" style={{ gap: 0 }}>
           <div
             onClick={() => inputRef.current?.click()}
@@ -227,8 +214,6 @@ export default function UploadDialog({ onClose, onIndexed }) {
             primary
           />
         </div>
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

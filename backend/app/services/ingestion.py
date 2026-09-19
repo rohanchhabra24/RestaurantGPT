@@ -204,49 +204,63 @@ async def ingest_policy_document(
             f"Document text is too long ({len(text)} chars, max {MAX_POLICY_TEXT_CHARS}) — split it into smaller documents"
         )
 
+    # All the slow, network-bound work (embedding, the injection-guard's
+    # LLM classifier) happens here, before any DB transaction opens below —
+    # holding a transaction open across a network round-trip per chunk
+    # would tie up a pool connection (and any locks it holds) for as long
+    # as the slowest of them takes. Everything from here on is local,
+    # already-computed data going into fast, local DB writes.
+    chunks = chunk_text(text)
+    vectors = embed_batch(chunks)
+    guard_results = [await injection_guard.check_chunk(chunk) for chunk in chunks]
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        next_version = await conn.fetchval(
-            "select coalesce(max(version), 0) + 1 from policy_documents where restaurant_id = $1 and doc_type = $2",
-            uuid.UUID(restaurant_id),
-            doc_type,
-        )
-        doc_row = await conn.fetchrow(
-            """insert into policy_documents (restaurant_id, source_name, doc_type, effective_date, expiry_date, version)
-               values ($1,$2,$3,$4,$5,$6) returning id""",
-            uuid.UUID(restaurant_id),
-            source_name,
-            doc_type,
-            effective_date,
-            expiry_date,
-            next_version,
-        )
-        doc_id = doc_row["id"]
-
-        chunks = chunk_text(text)
-        vectors = embed_batch(chunks)
-
-        flagged_count = 0
-        for idx, (chunk, vec) in enumerate(zip(chunks, vectors)):
-            vec_literal = "[" + ",".join(str(x) for x in vec) + "]"
-            flagged, flag_reason = await injection_guard.check_chunk(chunk)
-            flagged_count += int(flagged)
-            await conn.execute(
-                """insert into policy_chunks
-                   (policy_document_id, restaurant_id, chunk_text, chunk_index, section_label,
-                    embedding, flagged, flag_reason)
-                   values ($1,$2,$3,$4,$5,$6::vector,$7,$8)""",
-                doc_id,
+        # Wrapped in a transaction — without one, a crash partway through
+        # the chunk-insert loop (this ran unwrapped before: each insert
+        # auto-committed individually) left the policy_documents row and
+        # however many policy_chunks rows had landed so far permanently
+        # committed: a silently partial document, live in retrieval, with
+        # no rollback and no re-run mechanism. Now either the whole
+        # document (and its version bump) lands, or none of it does.
+        async with conn.transaction():
+            next_version = await conn.fetchval(
+                "select coalesce(max(version), 0) + 1 from policy_documents where restaurant_id = $1 and doc_type = $2",
                 uuid.UUID(restaurant_id),
-                chunk,
-                idx,
-                f"{source_name} §{idx + 1}",
-                vec_literal,
-                flagged,
-                flag_reason,
+                doc_type,
             )
+            doc_row = await conn.fetchrow(
+                """insert into policy_documents (restaurant_id, source_name, doc_type, effective_date, expiry_date, version)
+                   values ($1,$2,$3,$4,$5,$6) returning id""",
+                uuid.UUID(restaurant_id),
+                source_name,
+                doc_type,
+                effective_date,
+                expiry_date,
+                next_version,
+            )
+            doc_id = doc_row["id"]
 
-        await _bump_data_version(conn, uuid.UUID(restaurant_id))
+            flagged_count = 0
+            for idx, (chunk, vec, (flagged, flag_reason)) in enumerate(zip(chunks, vectors, guard_results)):
+                vec_literal = "[" + ",".join(str(x) for x in vec) + "]"
+                flagged_count += int(flagged)
+                await conn.execute(
+                    """insert into policy_chunks
+                       (policy_document_id, restaurant_id, chunk_text, chunk_index, section_label,
+                        embedding, flagged, flag_reason)
+                       values ($1,$2,$3,$4,$5,$6::vector,$7,$8)""",
+                    doc_id,
+                    uuid.UUID(restaurant_id),
+                    chunk,
+                    idx,
+                    f"{source_name} §{idx + 1}",
+                    vec_literal,
+                    flagged,
+                    flag_reason,
+                )
+
+            await _bump_data_version(conn, uuid.UUID(restaurant_id))
 
     return {"document_id": str(doc_id), "version": next_version, "chunks_indexed": len(chunks), "chunks_flagged": flagged_count}
 

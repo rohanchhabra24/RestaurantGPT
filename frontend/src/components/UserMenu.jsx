@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../authContext.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
+import Modal from "./Modal.jsx";
 import { getTheme, setTheme } from "../theme.js";
 import { settingsApi, api } from "../api.js";
 
@@ -156,15 +156,8 @@ export default function UserMenu({ collapsed = false }) {
         )}
       </AnimatePresence>
 
-      {settingsOpen && createPortal(
-        // Portaled to <body> — UserMenu renders from inside Topbar.jsx,
-        // which has backdrop-filter, and per spec that makes it a
-        // containing block for position:fixed descendants. Without this,
-        // .dialog-backdrop's "fixed, full viewport" would actually be
-        // relative to the 56px-tall topbar instead of the real viewport.
-        <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && setSettingsOpen(false)}>
-          <div className="dialog" style={{ width: 380, maxWidth: "92vw" }}>
-            <div className="dialog-title">{t("settings.title")}</div>
+      {settingsOpen && (
+        <Modal onClose={() => setSettingsOpen(false)} title={t("settings.title")} width={380} style={{ maxWidth: "92vw" }}>
             <div className="dialog-body" style={{ gap: 14 }}>
               <div>
                 <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>{t("settings.account")}</div>
@@ -255,9 +248,7 @@ export default function UserMenu({ collapsed = false }) {
               <button type="button" className="btn btn-secondary" onClick={() => setSettingsOpen(false)}>{t("settings.close")}</button>
               <button type="button" className="btn btn-primary" onClick={signOut}>{t("settings.signOut")}</button>
             </div>
-          </div>
-        </div>,
-        document.body,
+        </Modal>
       )}
     </div>
   );

@@ -167,10 +167,18 @@ def extract_citations(answer_text: str) -> list[dict]:
     return [{"type": m.group(1).lower(), "ref_id": m.group(2)} for m in CITATION_RE.finditer(answer_text)]
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 async def generate_greeting(question: str, timezone: str, response_language: str = "english", usage_sink: list | None = None) -> str:
-    now = datetime.now(ZoneInfo(timezone))
+    try:
+        now = datetime.now(ZoneInfo(timezone))
+    except ZoneInfoNotFoundError:
+        # onboarding.py validates this at intake, but this stays defensive
+        # for any row written before that validation existed — a bad
+        # timezone string shouldn't 500 the greeting route when "just use
+        # a default" is a perfectly fine fallback for a value this route
+        # only uses to decide morning/afternoon/evening/night wording.
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
     hour = now.hour
     time_context = "morning" if 5 <= hour < 12 else "afternoon" if 12 <= hour < 17 else "evening" if 17 <= hour < 21 else "night"
     
