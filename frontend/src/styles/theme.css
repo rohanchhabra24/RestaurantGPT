@@ -191,11 +191,12 @@ a { color: inherit; }
   flex-direction: column;
 }
 
-.app-sidebar-tagline {
-  font-size: 10.5px;
+.app-topbar-tagline {
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-neutral-500);
   letter-spacing: .02em;
+  white-space: nowrap;
 }
 
 /* Each link is its own relatively-positioned row so the active pill
@@ -316,7 +317,14 @@ a { color: inherit; }
   /* Both consumers (UserMenu, NotificationsMenu) sit at the right end of
      the top bar, so anchoring to the trigger's right edge keeps the
      popover's right edge flush with the bar's own right edge instead of
-     spilling past the viewport. */
+     spilling past the viewport. This only holds up when the popover's
+     own width fits between its trigger and the screen's left edge —
+     NotificationsMenu's is min-width 300px and its trigger isn't the
+     rightmost element (the avatar sits further right), so on a narrow
+     phone (≈360px and below — a common Android width) the box's left
+     edge goes negative. Below 480px this switches to a fixed, viewport-
+     relative sheet instead (see the mobile block) so it can never
+     overflow regardless of which trigger opened it. */
   right: 0;
   min-width: 220px;
   /* Same vibrancy treatment as .nav — a floating popover over content
@@ -804,6 +812,7 @@ kbd {
 
 @media (max-width: 760px) {
   .app-topbar-grounded-tag { display: none; }
+  .app-topbar-tagline { display: none; }
   .app-topbar-upload-btn { padding: 0; width: 34px; height: 34px; justify-content: center; border-radius: 50%; }
   .app-topbar-upload-btn-label { display: none; }
 
@@ -878,4 +887,22 @@ kbd {
 @media (min-width: 761px) {
   .chat-sidebar-toggle { display: none !important; }
   .chat-sidebar-scrim { display: none !important; }
+}
+
+/* Narrower than the general 760px breakpoint on purpose — .menu-popover's
+   trigger-relative right:0 anchor only overflows the left edge once the
+   screen gets down around ≈360px (common Android width) or below, not at
+   phone widths generally. Below that, it stops trying to anchor to
+   whichever specific icon was tapped and pins itself to the viewport
+   instead — a full-width sheet with fixed margins can't overflow no
+   matter which trigger opened it. */
+@media (max-width: 480px) {
+  .menu-popover {
+    position: fixed;
+    top: 64px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    min-width: 0;
+  }
 }

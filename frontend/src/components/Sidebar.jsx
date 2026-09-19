@@ -7,13 +7,15 @@ function isItemActive(item, pathname) {
   return item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
-// Pure navigation — brand mark and the primary links, nothing else.
-// Identity/utility controls (notifications, account, upload) live in
-// Topbar.jsx instead, which stays visible whether this panel is open or
-// collapsed. Desktop collapses it to width 0 in place (content reflows to
-// fill the freed space); below 760px there's no useful width to reflow
-// into, so it becomes an off-canvas overlay drawer with a scrim instead —
-// see .app-sidebar's two separate media-query blocks in theme.css.
+// Pure navigation — just the primary links. Brand mark lives in
+// Topbar.jsx instead (it needs to stay visible whether this panel is open
+// or collapsed — putting it inside a panel that can disappear defeats the
+// point of a logo). Identity/utility controls (notifications, account,
+// upload) live there too. Desktop collapses this panel to width 0 in
+// place (content reflows to fill the freed space); below 760px there's
+// no useful width to reflow into, so it becomes an off-canvas overlay
+// drawer with a scrim instead — see .app-sidebar's two separate
+// media-query blocks in theme.css.
 export default function Sidebar({ open }) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -28,11 +30,6 @@ export default function Sidebar({ open }) {
   return (
     <div className="app-sidebar" data-open={open}>
       <div className="app-sidebar-inner">
-        <div style={{ padding: "0 8px", marginBottom: 22 }}>
-          <img src="/logo.png" alt="RestaurantGPT" style={{ height: 30, objectFit: "contain", display: "block" }} />
-          <div className="app-sidebar-tagline" style={{ marginTop: 6 }}>{t("nav.tagline")}</div>
-        </div>
-
         <nav style={{ display: "flex", flexDirection: "column", gap: 2 }} aria-label="Primary">
           {navItems.map((item) => {
             const active = isItemActive(item, pathname);

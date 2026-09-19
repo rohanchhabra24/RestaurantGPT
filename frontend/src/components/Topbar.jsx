@@ -32,6 +32,14 @@ export default function Topbar({ navOpen, onToggleNav }) {
         <Icon name={navOpen ? "x" : "menu"} size={16} />
       </button>
 
+      {/* Plain <img> straight on the bar's own background — no card, pill,
+          or button wrapper around it. The PNG itself is fully transparent
+          (verified: corner/background alpha is 0), so anything that reads
+          as "a background behind the logo" would be a wrapper we added,
+          not the asset — so this deliberately has none. */}
+      <img src="/logo.png" alt="RestaurantGPT" style={{ height: 24, objectFit: "contain", flex: "none" }} />
+      <span className="app-topbar-tagline">{t("nav.tagline")}</span>
+
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
         {groundedRate != null && (
           <span className="tag tag-accent mono app-topbar-grounded-tag" style={{ gap: 5 }} title={t("nav.groundedTooltip")}>
