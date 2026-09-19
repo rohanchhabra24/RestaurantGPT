@@ -155,17 +155,19 @@ a { color: inherit; }
 }
 
 /* ── App sidebar ─────────────────────────────────────────────────────────
-   Pure navigation (Sidebar.jsx) — logo and links only, nothing that needs
-   to stay reachable while it's closed (that lives in .app-topbar instead).
-   Desktop collapses it to width 0 in place, so content reflows to fill
-   the freed space, rather than overlaying it — a deliberate user choice
-   toggled from the topbar, not tied to viewport size. Below 760px there's
-   no useful width to reflow into, so it becomes an off-canvas overlay
-   drawer with a scrim instead. These two behaviors are different enough
-   mechanically (width-collapse vs. fixed-position slide) that each lives
-   entirely inside its own media query below, with no shared width/
-   position/transform rules up here — that avoids the two blocks' rules
-   ever competing over the same property at the same viewport. */
+   Navigation plus the identity chrome it owns: a collapse toggle pinned
+   at the top (Sidebar.jsx's .app-sidebar-header) and the account menu
+   pinned at the bottom (.app-sidebar-footer), with the nav links filling
+   the space between. Desktop collapses it to a narrow icon-only RAIL, not
+   width 0 — a fully-collapsed width:0 panel would take its own toggle
+   (and the account menu) down with it, with no way back in. The rail
+   keeps both reachable while trimmed down. Below 760px there's no useful
+   width for a rail, so it becomes an off-canvas overlay drawer with a
+   scrim instead. These two behaviors are different enough mechanically
+   (width-collapse vs. fixed-position slide) that each lives entirely
+   inside its own media query below, with no shared width/position/
+   transform rules up here — that avoids the two blocks' rules ever
+   competing over the same property at the same viewport. */
 
 .app-sidebar {
   flex: none;
@@ -181,14 +183,75 @@ a { color: inherit; }
 
 /* Fixed-width content wrapper inside the (possibly width-animating)
    outer box — so collapsing .app-sidebar clips this cleanly instead of
-   its contents reflowing/wrapping mid-transition. */
+   its contents reflowing/wrapping mid-transition. Header/nav/footer stack
+   is what turns this into "toggle up top, links in the middle, profile
+   pinned at the bottom" rather than one flat list. */
 .app-sidebar-inner {
-  width: 248px;
-  min-width: 248px;
+  /* Tracks .app-sidebar's own (possibly animating) width exactly, rather
+     than a fixed 248px clipped by the outer box's overflow:hidden — a
+     fixed-width inner made sense when collapsing just hid everything
+     behind the same left edge, but centering an icon-only rail's content
+     (toggle, nav icons, avatar) needs the box it's centering *within* to
+     actually be the rail's real width, not the expanded panel's. Labels
+     are hidden via the data-open attribute the instant it flips (not
+     animated), so there's no mid-transition reflow to guard against here
+     the way the old comment describes. */
+  width: 100%;
+  min-width: 0;
   height: 100%;
-  padding: 20px 14px;
+  padding: 14px 14px 14px;
   display: flex;
   flex-direction: column;
+}
+
+.app-sidebar-header {
+  flex: none;
+  padding: 0 2px 14px;
+}
+
+.app-sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Pinned to the bottom regardless of how much (or little) nav content is
+   above it — margin-top:auto on the flex column, not a fixed position,
+   so it still scrolls into view correctly if the nav list ever grows
+   past the panel's height. */
+.app-sidebar-footer {
+  flex: none;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-divider);
+}
+
+.app-sidebar-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.app-sidebar-profile-btn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+
+.app-sidebar-profile-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-topbar-tagline {
@@ -234,7 +297,28 @@ a { color: inherit; }
     width: 248px;
     transition: width .22s ease;
   }
-  .app-sidebar[data-open="false"] { width: 0; border-right-color: transparent; }
+  /* Collapses to a 64px icon-only rail, not width 0 — the rail keeps its
+     own header toggle and footer profile avatar reachable; a fully
+     collapsed panel would take both down with it. */
+  .app-sidebar[data-open="false"] { width: 64px; }
+  .app-sidebar[data-open="false"] .app-sidebar-link-label,
+  .app-sidebar[data-open="false"] .app-sidebar-profile-email {
+    display: none;
+  }
+  .app-sidebar[data-open="false"] .app-sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; }
+  .app-sidebar[data-open="false"] .app-sidebar-header { display: flex; justify-content: center; }
+  .app-sidebar[data-open="false"] .app-sidebar-profile-btn { justify-content: center; padding: 6px 0; }
+  /* Tighter side padding while collapsed — the rail is only 64px wide, and
+     the default 14px each side leaves barely a pixel either side of the
+     34px avatar circle. */
+  .app-sidebar[data-open="false"] .app-sidebar-inner { padding-left: 8px; padding-right: 8px; }
+  /* Mobile's off-canvas drawer trigger — unnecessary on desktop, where the
+     rail's own header toggle (Sidebar.jsx) does this job instead. Two
+     classes (not one) so this beats .btn's own display:inline-flex on
+     specificity rather than depending on source order, since both are
+     single-class selectors otherwise and .btn is defined later in this
+     file. */
+  .app-topbar .topbar-nav-toggle { display: none; }
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */

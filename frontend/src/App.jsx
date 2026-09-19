@@ -61,7 +61,7 @@ function AuthedApp() {
       <Topbar navOpen={navOpen} onToggleNav={() => setNavOpen((v) => !v)} />
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {navOpen && <div className="app-sidebar-scrim" onClick={() => setNavOpen(false)} />}
-        <Sidebar open={navOpen} />
+        <Sidebar open={navOpen} onToggleNav={() => setNavOpen((v) => !v)} />
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <Suspense fallback={PAGE_FALLBACK}>
             <Routes>

@@ -19,7 +19,13 @@ SWEEP_WINDOW_SQL = """
     from orders
     where restaurant_id = $1
       and is_cancelled = true
-      and placed_at >= now() - interval '2 days'
+      -- Anchored to this restaurant's own most recent order, not wall-clock
+      -- now() — orders arrive via a one-off historical CSV upload, not a
+      -- live feed, so "now() - 2 days" silently matched zero rows for any
+      -- data uploaded more than 2 days ago (i.e. nearly all real usage).
+      -- Anchoring to max(placed_at) keeps the same "recent activity" intent
+      -- but relative to the data actually on file.
+      and placed_at >= (select max(placed_at) from orders where restaurant_id = $1) - interval '2 days'
       and id not in (select order_id from compensation_claims where restaurant_id = $1)
 """
 

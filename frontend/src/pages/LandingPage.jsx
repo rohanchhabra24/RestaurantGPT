@@ -33,10 +33,7 @@ export default function LandingPage() {
     >
       <nav className="flex items-center gap-4 px-5 py-5 sm:px-10 lg:px-[72px]">
         <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
-          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-md bg-accent">
-            <Icon name="route" size={14} className="text-accent-foreground" />
-          </span>
-          RestaurantGPT
+          <img src="/logo.png" alt="RestaurantGPT" className="h-6 w-auto flex-none object-contain" />
         </span>
         <Button onClick={getStarted}>Get started</Button>
       </nav>
@@ -71,10 +68,7 @@ export default function LandingPage() {
             />
             <Card className="relative flex flex-col gap-3.5 p-5 pb-6">
               <div className="flex items-center gap-2">
-                <span className="flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px] bg-accent">
-                  <Icon name="route" size={11} className="text-accent-foreground" />
-                </span>
-                <span className="font-heading text-sm font-medium">RestaurantGPT</span>
+                <img src="/logo.png" alt="RestaurantGPT" className="h-[15px] w-auto flex-none object-contain" />
                 <Badge className="ml-auto">
                   <Icon name="check" size={10} className="[animation:rgpt-pulse_2.4s_ease-in-out_infinite]" />
                   Live

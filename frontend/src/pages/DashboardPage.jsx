@@ -561,9 +561,9 @@ export default function DashboardPage() {
               )}
               <FilterDropdown label="Platform" value={platformFilter} options={platformOptions} onChange={setPlatformFilter} />
               <FilterDropdown label="Status" value={statusFilter} options={STATUS_OPTIONS} onChange={setStatusFilter} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <OrderSearch />
+              <div style={{ marginLeft: "auto" }}>
+                <OrderSearch />
+              </div>
             </div>
           </div>
           <div style={{ flex: 1, overflow: "auto" }}>

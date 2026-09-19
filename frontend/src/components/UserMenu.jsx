@@ -61,7 +61,7 @@ function initialsFor(email) {
   return local.slice(0, 2).toUpperCase();
 }
 
-export default function UserMenu() {
+export default function UserMenu({ collapsed = false }) {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
@@ -120,17 +120,31 @@ export default function UserMenu() {
   }
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" className="avatar" onClick={() => setOpen((v) => !v)} aria-label="Account menu" title={user?.email}>
-        {initialsFor(user?.email)}
+    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+      <button
+        type="button"
+        className="app-sidebar-profile-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Account menu"
+        title={user?.email}
+      >
+        <span className="avatar" aria-hidden="true">{initialsFor(user?.email)}</span>
+        {!collapsed && <span className="app-sidebar-profile-email">{user?.email}</span>}
       </button>
       <AnimatePresence>
         {open && (
           <motion.div
             className="menu-popover"
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            // Pinned at the sidebar's bottom, so the popover opens upward
+            // (bottom-anchored) instead of the shared .menu-popover default
+            // of opening below its trigger — down would run it off the
+            // viewport. left:0/right:auto for the same reason FilterDropdown
+            // needed it: this trigger sits at the sidebar's left edge, not
+            // the right end of a wide bar the shared class assumes.
+            style={{ top: "auto", bottom: "calc(100% + 8px)", left: 0, right: "auto" }}
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
           >
             <div className="menu-popover-header">{user?.email}</div>
