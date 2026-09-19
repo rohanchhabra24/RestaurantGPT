@@ -12,6 +12,7 @@ import asyncio
 import time
 
 from app.services import grounding, intent_router, multi_agent_investigator, pricing, retrieval_engine, sql_engine, synthesis
+from app.services.claude_client import LLMUnavailableError
 
 
 class PipelineResult:
@@ -102,8 +103,50 @@ _ABSTENTION_MESSAGES = {
     ),
 }
 
+# Distinct from _ABSTENTION_MESSAGES on purpose — that one means "I looked
+# and the data doesn't back up an answer", this one means "I couldn't even
+# try because the AI service itself failed" (timeout/rate-limit/outage,
+# see claude_client.LLMUnavailableError). Telling the operator to narrow
+# their time window would be actively misleading here; telling them to
+# retry shortly is the honest, actionable version of the same "don't
+# pretend it worked" principle.
+_LLM_UNAVAILABLE_MESSAGES = {
+    "english": (
+        "I couldn't reach the AI service just now, so I can't answer that yet. "
+        "This is usually temporary — please try again in a moment."
+    ),
+    "hindi": (
+        "मैं अभी AI सेवा तक नहीं पहुँच पाया, इसलिए इसका जवाब नहीं दे सकता। यह आमतौर पर थोड़ी "
+        "देर की समस्या होती है — कृपया कुछ देर बाद फिर से कोशिश करें।"
+    ),
+    "hinglish": (
+        "Main abhi AI service tak nahi pahunch paaya, isliye iska jawaab nahi de "
+        "sakta. Yeh usually thodi der ki problem hoti hai — kripya thodi der baad "
+        "phir se try karein."
+    ),
+}
+
 
 async def run_pipeline(question: str, restaurant_id: str, response_language: str = "english") -> PipelineResult:
+    """Thin wrapper around _run_pipeline: every stage below this point
+    (routing, SQL generation, synthesis, the investigator, grounding's own
+    corrective retry) makes at least one LLM call, and a timeout/rate-limit/
+    outage from any of them would otherwise propagate as an unhandled
+    exception — a raw 500 on exactly the "zero-hallucination, always give
+    the operator something honest" pipeline this app is built around.
+    Caught here, once, rather than at every individual call site."""
+    try:
+        return await _run_pipeline(question, restaurant_id, response_language)
+    except LLMUnavailableError:
+        result = PipelineResult()
+        result.answer_text = _LLM_UNAVAILABLE_MESSAGES.get(response_language, _LLM_UNAVAILABLE_MESSAGES["english"])
+        result.grounding_verdict = "no_claims"
+        result.citation_coverage = 1.0
+        result.abstained = True
+        return result
+
+
+async def _run_pipeline(question: str, restaurant_id: str, response_language: str = "english") -> PipelineResult:
     result = PipelineResult()
 
     t0 = time.perf_counter()

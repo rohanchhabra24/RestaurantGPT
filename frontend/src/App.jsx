@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "./authContext.jsx";
 import { onboardingApi } from "./api.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
 import SoundEffects from "./components/SoundEffects.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 // Route-level code splitting — each page ships as its own chunk instead of
 // one bundle everyone downloads regardless of which page (or whether
@@ -63,15 +64,22 @@ function AuthedApp() {
         {navOpen && <div className="app-sidebar-scrim" onClick={() => setNavOpen(false)} />}
         <Sidebar open={navOpen} onToggleNav={() => setNavOpen((v) => !v)} />
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <Suspense fallback={PAGE_FALLBACK}>
-            <Routes>
-              <Route path="/" element={<ChatPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/sources" element={<DataSourcesPage />} />
-              <Route path="/diagnoses" element={<DiagnosesPage />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Suspense>
+          {/* Keyed by pathname so navigating away from a crashed page
+              remounts the boundary (resetting its error state) instead of
+              it going on showing the fallback forever — scoped to just
+              this pane so a crash in one page doesn't take the still-
+              working Topbar/Sidebar down with it. */}
+          <ErrorBoundary key={pathname}>
+            <Suspense fallback={PAGE_FALLBACK}>
+              <Routes>
+                <Route path="/" element={<ChatPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/sources" element={<DataSourcesPage />} />
+                <Route path="/diagnoses" element={<DiagnosesPage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </div>

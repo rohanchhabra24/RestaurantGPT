@@ -14,9 +14,15 @@ frontend/  React + Vite
 ## 1. Set up Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run the migrations **in order**: `001_init.sql`,
-   `002_injection_guardrail.sql`, `003_policy_impact.sql`,
-   `004_diagnostics.sql`, `005_semantic_cache.sql`, `006_auth_multitenancy.sql`.
+2. In the SQL editor, run every file in `backend/migrations/` **in order**
+   (there's no migration-runner tool — each one is pasted and run by hand,
+   so skipping one leaves the feature it backs broken rather than failing
+   loudly): `001_init.sql`, `002_injection_guardrail.sql`,
+   `003_policy_impact.sql`, `004_diagnostics.sql`, `005_semantic_cache.sql`,
+   `006_auth_multitenancy.sql`, `007_csv_mapping_profiles.sql`,
+   `008_response_language.sql`, `009_compensation_digest.sql`,
+   `010_app_events.sql`, `011_live_feed.sql`, `012_message_feedback.sql`,
+   `013_weather.sql`, `014_compensation_claims_unique.sql`.
 3. **Manual step (can't be done from a migration):** in the dashboard, go to
    Authentication → Hooks → "Customize Access Token (JWT) Claims" and select
    `public.custom_access_token_hook` as the hook function. Without this,
