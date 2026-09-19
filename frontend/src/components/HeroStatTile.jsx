@@ -25,7 +25,7 @@ function formatValue(v, format) {
 // the equivalent prior period, and a 12-ish-point trend line — the
 // dataviz pattern for "a single headline value plus its trend", not a
 // full chart (no axes/legend needed for one series with a title).
-export default function HeroStatTile({ label, icon, format = "number", value, deltaPct, points, granularity, size = "lg" }) {
+export default function HeroStatTile({ label, icon, format = "number", value, deltaPct, points, granularity, size = "lg", color = "accent", chartBaseColor = "var(--color-accent)", chartHoverColor = "var(--color-accent)", obscured = false, onToggleObscure }) {
   const svgRef = useRef(null);
   const [hoverIdx, setHoverIdx] = useState(null);
 
@@ -54,13 +54,20 @@ export default function HeroStatTile({ label, icon, format = "number", value, de
 
   return (
     <div className={`card elev-sm hero-stat-tile hero-stat-tile-${size}`} style={{ padding: 18, gap: 6, position: "relative" }}>
-      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {icon && <Icon name={icon} size={11} />}
-        {label}
+      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {icon && <Icon name={icon} size={11} />}
+          {label}
+        </div>
+        {onToggleObscure && (
+          <button onClick={onToggleObscure} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", opacity: 0.6 }} aria-label="Toggle visibility">
+            <Icon name={obscured ? "eye-off" : "eye"} size={14} />
+          </button>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
         <div style={{ font: `600 ${size === "lg" ? 30 : 22}px var(--font-body)` }}>
-          {value == null ? "—" : formatValue(value, format)}
+          {value == null ? "—" : obscured ? "₹ ***,***" : formatValue(value, format)}
         </div>
         {deltaPct != null && (
           <span
@@ -86,11 +93,11 @@ export default function HeroStatTile({ label, icon, format = "number", value, de
           >
             <path
               d={`${pathFor(vals, xFor, yFor)} L ${xFor(points.length - 1)} ${HEIGHT} L ${xFor(0)} ${HEIGHT} Z`}
-              fill="var(--color-accent)"
+              fill={chartHoverColor}
               opacity="0.1"
               stroke="none"
             />
-            <path d={pathFor(vals, xFor, yFor)} fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={pathFor(vals, xFor, yFor)} fill="none" stroke={chartBaseColor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
             {hoverIdx != null && (
               <line x1={xFor(hoverIdx)} x2={xFor(hoverIdx)} y1={0} y2={HEIGHT} stroke="var(--color-divider)" strokeWidth="1" />
             )}
@@ -98,12 +105,12 @@ export default function HeroStatTile({ label, icon, format = "number", value, de
               cx={xFor(points.length - 1)}
               cy={yFor(vals[vals.length - 1])}
               r="4.5"
-              fill="var(--color-accent)"
+              fill={chartHoverColor}
               stroke="var(--color-surface)"
               strokeWidth="2"
             />
             {hoverIdx != null && hoverIdx !== points.length - 1 && (
-              <circle cx={xFor(hoverIdx)} cy={yFor(vals[hoverIdx])} r="4.5" fill="var(--color-accent)" stroke="var(--color-surface)" strokeWidth="2" />
+              <circle cx={xFor(hoverIdx)} cy={yFor(vals[hoverIdx])} r="4.5" fill={chartHoverColor} stroke="var(--color-surface)" strokeWidth="2" />
             )}
           </svg>
           {hovered && (

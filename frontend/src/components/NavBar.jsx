@@ -6,7 +6,6 @@ import Icon from "./Icon.jsx";
 import UserMenu from "./UserMenu.jsx";
 import NotificationsMenu from "./NotificationsMenu.jsx";
 import UploadDialog from "./UploadDialog.jsx";
-import OrderSearch from "./OrderSearch.jsx";
 import { api } from "../api.js";
 
 function isItemActive(item, pathname) {
@@ -32,12 +31,9 @@ export default function NavBar() {
 
   return (
     <div className="nav" style={{ borderBottom: "1px solid var(--color-divider)", background: "var(--color-surface)", flex: "none" }}>
-      <span className="nav-brand" style={{ display: "flex", alignItems: "center", gap: 9, marginRight: 20 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 8, background: "var(--color-accent-800)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-          <Icon name="route" size={14} style={{ color: "var(--color-accent-200)" }} />
-        </span>
+      <span className="nav-brand" style={{ display: "flex", alignItems: "center", marginRight: 20 }}>
+        <img src="/logo.png" alt="RestaurantGPT" style={{ height: 28, objectFit: "contain", marginRight: 12 }} />
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-          RestaurantGPT
           <span className="nav-brand-tagline">{t("nav.tagline")}</span>
         </span>
       </span>
@@ -67,7 +63,6 @@ export default function NavBar() {
             {t("nav.groundedSuffix", { percent: (groundedRate * 100).toFixed(0) })}
           </span>
         )}
-        <OrderSearch />
         <button type="button" className="btn btn-primary nav-upload-btn" onClick={() => setUploadOpen(true)}>
           <Icon name="upload" size={14} />
           <span className="nav-upload-btn-label">{t("nav.uploadData")}</span>

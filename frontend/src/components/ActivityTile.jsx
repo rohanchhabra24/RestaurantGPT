@@ -9,7 +9,7 @@ import CountUp from "./CountUp.jsx";
    of "this number updates." */
 export default function ActivityTile({ label, value, icon }) {
   return (
-    <div className="activity-tile">
+    <div className="activity-tile" style={{ justifyContent: "space-between" }}>
       <div className="activity-tile-head">
         <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {icon && <Icon name={icon} size={11} />}

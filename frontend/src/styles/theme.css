@@ -457,7 +457,8 @@ kbd {
    dashboard to check; SLA/accuracy are supporting detail. Two rows: a
    hero row (2 big tiles) and a secondary row (up to 4 smaller ones). */
 .dashboard-hero-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.dashboard-secondary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.dashboard-secondary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.tile-wide { grid-column: span 2; }
 
 /* A header row that wraps as two clean units instead of squeezing its
    text column into a ransom-note wrap on narrow screens: icon+text wrap

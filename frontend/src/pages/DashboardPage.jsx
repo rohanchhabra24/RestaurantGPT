@@ -7,6 +7,7 @@ import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
 import HeroStatTile from "../components/HeroStatTile.jsx";
 import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
 import CompensationDigestBanner from "../components/CompensationDigestBanner.jsx";
+import OrderSearch from "../components/OrderSearch.jsx";
 import AiPerformancePopover from "../components/AiPerformancePopover.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
 import { api } from "../api.js";
@@ -19,7 +20,7 @@ const TABS = [
 
 function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }) {
   return (
-    <div className="card elev-sm" style={{ padding: 16, gap: 8 }}>
+    <div className="card elev-sm" style={{ padding: 16, gap: 8, justifyContent: "space-between" }}>
       <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {icon && <Icon name={icon} size={11} />}
         {label}
@@ -39,7 +40,7 @@ function DeliveryPaceTile({ avgDelaySeconds }) {
   const minutes = known ? Math.abs(avgDelaySeconds / 60) : 0;
   const ahead = known && avgDelaySeconds <= 0;
   return (
-    <div className="card elev-sm" style={{ padding: 16, gap: 6 }}>
+    <div className="card elev-sm tile-wide" style={{ padding: 16, gap: 6, justifyContent: "space-between" }}>
       <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <Icon name="clock" size={11} />
         Delivery speed
@@ -98,7 +99,7 @@ function OrderRow({ order, selected, onClick }) {
           background: selected ? "var(--color-accent-800)" : "var(--color-surface-raised)",
         }}
       >
-        <Icon name="route" size={14} style={{ color: selected ? "var(--color-accent-200)" : "var(--color-neutral-400)" }} />
+        <img src="/bell-icon.png" alt="Order" style={{ width: 14, height: 14, objectFit: "contain", opacity: selected ? 1 : 0.6 }} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5 }}>
@@ -229,6 +230,7 @@ export default function DashboardPage() {
   const [customTo, setCustomTo] = useState(null);
   const [trends, setTrends] = useState(null);
   const [digest, setDigest] = useState(null);
+  const [showRevenue, setShowRevenue] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const orderParam = searchParams.get("order");
 
@@ -350,34 +352,21 @@ export default function DashboardPage() {
           label="Revenue" icon="check" format="currency" size="lg"
           value={trends?.totals.revenue} deltaPct={trends?.deltas_pct.revenue}
           points={revenuePoints} granularity={trends?.granularity}
+          obscured={!showRevenue}
+          onToggleObscure={() => setShowRevenue(!showRevenue)}
         />
         <HeroStatTile
           label="Total orders" icon="db" format="number" size="lg"
           value={trends?.totals.orders} deltaPct={trends?.deltas_pct.orders}
           points={orderPoints} granularity={trends?.granularity}
+          chartBaseColor="#8b5cf6" chartHoverColor="#a78bfa"
         />
       </div>
 
       <div className="dashboard-secondary-row">
         <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
         <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-        <ActivityTile label="Orders today" value={kpis?.orders_today} icon="db" />
-        <div ref={perfRef} style={{ position: "relative" }}>
-          <button
-            type="button"
-            onClick={() => setPerfOpen((v) => !v)}
-            style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
-            aria-label="Show AI performance detail"
-            aria-expanded={perfOpen}
-          >
-            <RoundedKpiTile
-              label="Answer accuracy"
-              value={summary ? summary.grounded_rate * 100 : null}
-              icon="check"
-            />
-          </button>
-          <AiPerformancePopover open={perfOpen} summary={summary} />
-        </div>
+
         <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
         <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
         <StatTile
@@ -391,8 +380,8 @@ export default function DashboardPage() {
 
       <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
         <div className="card elev-sm" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none" }}>
-            <div className="seg" role="radiogroup" aria-label="Order filter">
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div className="seg" role="radiogroup" aria-label="Order filter" style={{ flexShrink: 0 }}>
               {TABS.map((t) => (
                 <label key={t.key} className="seg-opt" style={{ fontSize: 12.5 }}>
                   <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => setTab(t.key)} />
@@ -401,6 +390,7 @@ export default function DashboardPage() {
                 </label>
               ))}
             </div>
+            <OrderSearch />
           </div>
           <div style={{ flex: 1, overflow: "auto" }}>
             {orders === null && <div className="dim" style={{ padding: 16, fontSize: 13 }}>Loading…</div>}
