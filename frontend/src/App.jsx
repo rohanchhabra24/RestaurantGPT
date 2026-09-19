@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
-import Icon from "./components/Icon.jsx";
+import Topbar from "./components/Topbar.jsx";
 import { AuthProvider, useAuth } from "./authContext.jsx";
 import { onboardingApi } from "./api.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
@@ -41,27 +41,24 @@ function ConfigErrorScreen() {
 }
 
 function AuthedApp() {
-  const [navOpen, setNavOpen] = useState(false);
+  // Open by default on desktop (a dashboard's primary nav should be
+  // visible without an extra click), collapsed by default on a phone
+  // (no width to spare) — checked once at mount, not tracked live against
+  // resize, matching how the rest of this app treats its 760px breakpoint.
+  const [navOpen, setNavOpen] = useState(() => window.innerWidth > 760);
   const { pathname } = useLocation();
 
-  // Closes the mobile drawer once a route is actually picked — otherwise
-  // tapping a nav link on a phone would land on the new page with the
-  // drawer still covering it.
-  useEffect(() => { setNavOpen(false); }, [pathname]);
+  // On a phone the sidebar is an overlay, so picking a route should close
+  // it — otherwise the new page loads with the drawer still covering it.
+  // Desktop's collapse is a deliberate user choice instead, not something
+  // navigating away should reset.
+  useEffect(() => {
+    if (window.innerWidth <= 760) setNavOpen(false);
+  }, [pathname]);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <div className="app-mobile-topbar">
-        <button
-          type="button"
-          className="btn btn-ghost btn-icon app-sidebar-toggle"
-          aria-label={navOpen ? "Close menu" : "Open menu"}
-          onClick={() => setNavOpen((v) => !v)}
-        >
-          <Icon name={navOpen ? "x" : "menu"} size={16} />
-        </button>
-        <img src="/logo.png" alt="RestaurantGPT" style={{ height: 20, objectFit: "contain" }} />
-      </div>
+      <Topbar navOpen={navOpen} onToggleNav={() => setNavOpen((v) => !v)} />
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {navOpen && <div className="app-sidebar-scrim" onClick={() => setNavOpen(false)} />}
         <Sidebar open={navOpen} />

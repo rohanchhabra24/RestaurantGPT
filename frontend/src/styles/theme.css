@@ -127,35 +127,68 @@ a { color: inherit; }
 @keyframes rgpt-answer { 0%, 44% { opacity: 0; transform: translateY(10px); } 52%, 88% { opacity: 1; transform: translateY(0); } 95%, 100% { opacity: 0; transform: translateY(10px); } }
 @keyframes rgpt-fadeup { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ── App sidebar ─────────────────────────────────────────────────────────
-   Primary nav as a left-hand panel (Sidebar.jsx) instead of a top bar —
-   desktop renders it as a fixed, always-visible column; below 760px it
-   becomes an off-canvas drawer (see the mobile block below) toggled from
-   .app-mobile-topbar, the slim bar that takes the top nav's old place
-   there since there's no room for a full static sidebar on a phone. */
+/* ── Top bar ─────────────────────────────────────────────────────────────
+   Persistent app chrome (Topbar.jsx) — identity and utilities (upload,
+   notifications, account) plus the sidebar toggle. Spans full width above
+   both the sidebar and the page content, and stays visible regardless of
+   whether the sidebar below it is open or collapsed — profile and
+   notifications need to be reachable at all times, not just when the nav
+   panel happens to be open. */
 
-.app-mobile-topbar {
-  display: none;
+.app-topbar {
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
-  height: 52px;
+  padding: 0 16px;
+  height: 56px;
   flex: none;
+  /* Needs its own stacking context, above the sidebar's mobile z-index
+     (56) — otherwise the fixed, full-height drawer paints over this bar's
+     left end when open, burying the very toggle button that opened it
+     (and the icon-swap to "x" below would be invisible/unclickable). */
+  position: relative;
+  z-index: 57;
   border-bottom: 1px solid var(--color-divider);
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
+/* ── App sidebar ─────────────────────────────────────────────────────────
+   Pure navigation (Sidebar.jsx) — logo and links only, nothing that needs
+   to stay reachable while it's closed (that lives in .app-topbar instead).
+   Desktop collapses it to width 0 in place, so content reflows to fill
+   the freed space, rather than overlaying it — a deliberate user choice
+   toggled from the topbar, not tied to viewport size. Below 760px there's
+   no useful width to reflow into, so it becomes an off-canvas overlay
+   drawer with a scrim instead. These two behaviors are different enough
+   mechanically (width-collapse vs. fixed-position slide) that each lives
+   entirely inside its own media query below, with no shared width/
+   position/transform rules up here — that avoids the two blocks' rules
+   ever competing over the same property at the same viewport. */
+
 .app-sidebar {
-  width: 248px;
   flex: none;
+  border-right: 1px solid var(--color-divider);
   /* Same vibrancy treatment the rest of this app's floating chrome uses
-     (popovers, the old top bar) — a panel of app chrome, not just another
+     (popovers, the top bar) — a panel of app chrome, not just another
      content surface, reads better as a translucent material. */
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
+  overflow: hidden;
+}
+
+/* Fixed-width content wrapper inside the (possibly width-animating)
+   outer box — so collapsing .app-sidebar clips this cleanly instead of
+   its contents reflowing/wrapping mid-transition. */
+.app-sidebar-inner {
+  width: 248px;
+  min-width: 248px;
+  height: 100%;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-sidebar-tagline {
@@ -193,8 +226,15 @@ a { color: inherit; }
   z-index: 0;
 }
 
-.app-sidebar-toggle { display: none; }
 .app-sidebar-scrim { display: none; }
+
+@media (min-width: 761px) {
+  .app-sidebar {
+    width: 248px;
+    transition: width .22s ease;
+  }
+  .app-sidebar[data-open="false"] { width: 0; border-right-color: transparent; }
+}
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 
@@ -273,12 +313,11 @@ a { color: inherit; }
 .menu-popover {
   position: absolute;
   top: calc(100% + 8px);
-  /* left, not right — every consumer (UserMenu, NotificationsMenu) now
-     opens from a trigger inside the left-hand app sidebar, not a
-     right-aligned top bar, so anchoring to the trigger's right edge
-     would push the popover off-screen to the left instead of opening
-     into the sidebar's own free space. */
-  left: 0;
+  /* Both consumers (UserMenu, NotificationsMenu) sit at the right end of
+     the top bar, so anchoring to the trigger's right edge keeps the
+     popover's right edge flush with the bar's own right edge instead of
+     spilling past the viewport. */
+  right: 0;
   min-width: 220px;
   /* Same vibrancy treatment as .nav — a floating popover over content
      (avatar/notifications/AI-performance menus) reads as a distinct,
@@ -764,7 +803,9 @@ kbd {
    375px screen. */
 
 @media (max-width: 760px) {
-  .app-mobile-topbar { display: flex; }
+  .app-topbar-grounded-tag { display: none; }
+  .app-topbar-upload-btn { padding: 0; width: 34px; height: 34px; justify-content: center; border-radius: 50%; }
+  .app-topbar-upload-btn-label { display: none; }
 
   .app-sidebar {
     position: fixed;
@@ -786,7 +827,6 @@ kbd {
     background: color-mix(in srgb, var(--color-neutral-900) 55%, transparent);
     z-index: 55;
   }
-  .app-sidebar-toggle { display: inline-flex !important; }
 
   .dialog { max-width: 94vw; }
 
@@ -802,11 +842,10 @@ kbd {
     transform: translateX(-100%);
     transition: transform .22s ease;
     box-shadow: var(--shadow-lg);
-    /* Leaves .app-mobile-topbar's own hamburger (which opens the app-level
-       nav drawer, not this one) visible and clickable above this drawer
-       rather than covered by it — matches that bar's height, not the old
-       top nav's. */
-    padding-top: 52px !important;
+    /* Leaves .app-topbar's own controls (which open the app-level nav
+       drawer, not this one) visible and clickable above this drawer
+       rather than covered by it — matches that bar's height. */
+    padding-top: 56px !important;
   }
   .chat-sidebar[data-open="true"] { transform: translateX(0); }
   .chat-sidebar-scrim {
