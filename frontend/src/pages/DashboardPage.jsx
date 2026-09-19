@@ -401,16 +401,22 @@ export default function DashboardPage() {
           number itself. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div className="dim" style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Delivery &amp; SLA</div>
-        <div className="dashboard-secondary-row">
+        {/* 3 even columns, not 4 — DeliveryPaceTile is 2 columns wide by
+            design (.tile-wide), so 3 square tiles + 1 wide tile in a
+            4-column grid is 5 column-units trying to fit in 4, and the
+            4th tile always wraps onto its own row alone. Giving the wide
+            tile its own full-width row below instead means the grid
+            math actually divides evenly. */}
+        <div className="dashboard-secondary-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
           <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-          <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
           <StatTile
             label="Avg. prep time" icon="clock"
             value={kpis?.avg_prep_time_seconds != null ? kpis.avg_prep_time_seconds / 60 : null}
             decimals={1} suffix=" min"
           />
         </div>
+        <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -422,7 +428,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="dashboard-split" data-mobile-view={mobileView} style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
+      {/* minHeight, not minHeight:0 — flex:1 + minHeight:0 lets this
+          section shrink to fit whatever's left after the KPI tiles above
+          it, which on a shorter screen could be almost nothing (measured:
+          90px, with the order rows themselves collapsing to 0px visible
+          height) and the page never grows past the viewport to fall back
+          on a real scrollbar, so the rest of the content is just gone
+          with no way to reach it. A real minimum means the order list
+          never gets crushed smaller than something usable — and once
+          total content genuinely exceeds the viewport, this page's own
+          overflow:auto (set above) kicks in as a normal, working
+          scrollbar instead of silently vanishing content. */}
+      <div className="dashboard-split" data-mobile-view={mobileView} style={{ flex: 1, minHeight: 420, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16 }}>
         <div className="card elev-sm dashboard-list-pane" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none", display: "flex", flexDirection: "column", gap: 10 }}>
             <div className="seg" role="radiogroup" aria-label="Order filter" style={{ maxWidth: "100%", overflowX: "auto" }}>
