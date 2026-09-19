@@ -9,7 +9,7 @@ export function setAccessToken(token) {
   currentAccessToken = token;
 }
 
-// Dedupes identical concurrent GETs (e.g. NavBar and DashboardPage both
+// Dedupes identical concurrent GETs (e.g. Sidebar and DashboardPage both
 // independently fetching /insights/summary on the same page load) into
 // one network request instead of firing it twice — safe because GET has
 // no side effects, and this only merges requests that are genuinely

@@ -127,69 +127,74 @@ a { color: inherit; }
 @keyframes rgpt-answer { 0%, 44% { opacity: 0; transform: translateY(10px); } 52%, 88% { opacity: 1; transform: translateY(0); } 95%, 100% { opacity: 0; transform: translateY(10px); } }
 @keyframes rgpt-fadeup { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ── Nav ─────────────────────────────────────────────────────────────── */
+/* ── App sidebar ─────────────────────────────────────────────────────────
+   Primary nav as a left-hand panel (Sidebar.jsx) instead of a top bar —
+   desktop renders it as a fixed, always-visible column; below 760px it
+   becomes an off-canvas drawer (see the mobile block below) toggled from
+   .app-mobile-topbar, the slim bar that takes the top nav's old place
+   there since there's no room for a full static sidebar on a phone. */
 
-.nav {
-  display: flex;
+.app-mobile-topbar {
+  display: none;
   align-items: center;
-  padding: 0 24px;
-  height: 60px;
-  gap: 4px;
-  /* Vibrancy — a translucent, blurred surface rather than a flat opaque
-     one, so the toolbar reads as a physical layer of app chrome (macOS
-     menu bar / Finder toolbar) instead of a pasted-on strip sharing the
-     exact same flat color as the page below it. */
+  gap: 10px;
+  padding: 0 14px;
+  height: 52px;
+  flex: none;
+  border-bottom: 1px solid var(--color-divider);
   background: color-mix(in srgb, var(--color-surface) 78%, transparent);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
-.nav-brand {
-  font-weight: 600;
-  font-size: 14.5px;
+.app-sidebar {
+  width: 248px;
+  flex: none;
+  /* Same vibrancy treatment the rest of this app's floating chrome uses
+     (popovers, the old top bar) — a panel of app chrome, not just another
+     content surface, reads better as a translucent material. */
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
-.nav-brand-tagline {
+.app-sidebar-tagline {
   font-size: 10.5px;
   font-weight: 500;
   color: var(--color-neutral-500);
   letter-spacing: .02em;
 }
 
-/* Pill-shaped tab bar — a single dark pill container holding the links,
-   with a sliding highlighted pill (rendered by NavBar.jsx via
-   framer-motion's layoutId) behind whichever one is active. */
-.nav-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-divider);
-  border-radius: var(--radius-pill);
-  padding: 4px;
-}
-
-.nav-pill a {
+/* Each link is its own relatively-positioned row so the active pill
+   (an absolutely-positioned sibling, animated via framer-motion's
+   layoutId in Sidebar.jsx) can sit behind its icon+label without
+   affecting their layout. */
+.app-sidebar-link {
   position: relative;
-  z-index: 1;
-  padding: 7px 14px;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 13.5px;
   text-decoration: none;
   color: var(--color-text-dim);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   white-space: nowrap;
 }
 
-.nav-pill a:hover { color: var(--color-text); }
-.nav-pill a[aria-current="page"] { color: var(--color-neutral-900); font-weight: 600; }
+.app-sidebar-link:hover { color: var(--color-text); }
+.app-sidebar-link[aria-current="page"] { color: var(--color-neutral-900); font-weight: 600; }
 
-.nav-active-pill {
+.app-sidebar-active-pill {
   position: absolute;
   inset: 0;
   background: var(--color-accent);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   z-index: 0;
 }
+
+.app-sidebar-toggle { display: none; }
+.app-sidebar-scrim { display: none; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 
@@ -268,7 +273,12 @@ a { color: inherit; }
 .menu-popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  /* left, not right — every consumer (UserMenu, NotificationsMenu) now
+     opens from a trigger inside the left-hand app sidebar, not a
+     right-aligned top bar, so anchoring to the trigger's right edge
+     would push the popover off-screen to the left instead of opening
+     into the sidebar's own free space. */
+  left: 0;
   min-width: 220px;
   /* Same vibrancy treatment as .nav — a floating popover over content
      (avatar/notifications/AI-performance menus) reads as a distinct,
@@ -754,13 +764,29 @@ kbd {
    375px screen. */
 
 @media (max-width: 760px) {
-  .nav { padding: 0 14px; gap: 6px; flex-wrap: wrap; height: auto; min-height: 60px; }
-  .nav-brand-tagline { display: none; }
-  .nav-pill { order: 3; width: 100%; overflow-x: auto; }
-  .nav-pill a { padding: 7px 11px; font-size: 12.5px; }
-  .nav-grounded-tag { display: none; }
-  .nav-upload-btn { padding: 0; width: 34px; height: 34px; justify-content: center; border-radius: 50%; }
-  .nav-upload-btn-label { display: none; }
+  .app-mobile-topbar { display: flex; }
+
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 82vw;
+    max-width: 280px;
+    z-index: 56;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+    box-shadow: var(--shadow-lg);
+  }
+  .app-sidebar[data-open="true"] { transform: translateX(0); }
+  .app-sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: color-mix(in srgb, var(--color-neutral-900) 55%, transparent);
+    z-index: 55;
+  }
+  .app-sidebar-toggle { display: inline-flex !important; }
 
   .dialog { max-width: 94vw; }
 
@@ -776,7 +802,11 @@ kbd {
     transform: translateX(-100%);
     transition: transform .22s ease;
     box-shadow: var(--shadow-lg);
-    padding-top: 56px !important;
+    /* Leaves .app-mobile-topbar's own hamburger (which opens the app-level
+       nav drawer, not this one) visible and clickable above this drawer
+       rather than covered by it — matches that bar's height, not the old
+       top nav's. */
+    padding-top: 52px !important;
   }
   .chat-sidebar[data-open="true"] { transform: translateX(0); }
   .chat-sidebar-scrim {

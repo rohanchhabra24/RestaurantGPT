@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import NavBar from "./components/NavBar.jsx";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import Sidebar from "./components/Sidebar.jsx";
+import Icon from "./components/Icon.jsx";
 import { AuthProvider, useAuth } from "./authContext.jsx";
 import { onboardingApi } from "./api.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
@@ -40,18 +41,42 @@ function ConfigErrorScreen() {
 }
 
 function AuthedApp() {
+  const [navOpen, setNavOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  // Closes the mobile drawer once a route is actually picked — otherwise
+  // tapping a nav link on a phone would land on the new page with the
+  // drawer still covering it.
+  useEffect(() => { setNavOpen(false); }, [pathname]);
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <NavBar />
-      <Suspense fallback={PAGE_FALLBACK}>
-        <Routes>
-          <Route path="/" element={<ChatPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/sources" element={<DataSourcesPage />} />
-          <Route path="/diagnoses" element={<DiagnosesPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Suspense>
+      <div className="app-mobile-topbar">
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon app-sidebar-toggle"
+          aria-label={navOpen ? "Close menu" : "Open menu"}
+          onClick={() => setNavOpen((v) => !v)}
+        >
+          <Icon name={navOpen ? "x" : "menu"} size={16} />
+        </button>
+        <img src="/logo.png" alt="RestaurantGPT" style={{ height: 20, objectFit: "contain" }} />
+      </div>
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {navOpen && <div className="app-sidebar-scrim" onClick={() => setNavOpen(false)} />}
+        <Sidebar open={navOpen} />
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <Suspense fallback={PAGE_FALLBACK}>
+            <Routes>
+              <Route path="/" element={<ChatPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/sources" element={<DataSourcesPage />} />
+              <Route path="/diagnoses" element={<DiagnosesPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 }
