@@ -135,6 +135,13 @@ a { color: inherit; }
   padding: 0 24px;
   height: 60px;
   gap: 4px;
+  /* Vibrancy — a translucent, blurred surface rather than a flat opaque
+     one, so the toolbar reads as a physical layer of app chrome (macOS
+     menu bar / Finder toolbar) instead of a pasted-on strip sharing the
+     exact same flat color as the page below it. */
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
 }
 
 .nav-brand {
@@ -263,7 +270,13 @@ a { color: inherit; }
   top: calc(100% + 8px);
   right: 0;
   min-width: 220px;
-  background: var(--color-surface-raised);
+  /* Same vibrancy treatment as .nav — a floating popover over content
+     (avatar/notifications/AI-performance menus) reads as a distinct,
+     physical layer with a translucent blurred material, macOS-popover
+     style, rather than a flat opaque card. */
+  background: color-mix(in srgb, var(--color-surface-raised) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -459,6 +472,16 @@ kbd {
 .dashboard-hero-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .dashboard-secondary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .tile-wide { grid-column: span 2; }
+
+/* Master-detail on the order list — desktop shows both panes side by
+   side (the default .dashboard-split grid), but below 760px there is no
+   room for that, so without this the full order list (up to 100 rows)
+   renders above the detail pane and reaching it means scrolling past
+   all of them. Below 760px this swaps to iOS/macOS-style single-pane
+   navigation instead: whichever pane data-mobile-view names is shown,
+   the other is removed from layout entirely, and .dashboard-back-btn
+   (hidden on desktop) becomes the way back to the list. */
+.dashboard-back-btn { display: none; }
 
 /* A header row that wraps as two clean units instead of squeezing its
    text column into a ransom-note wrap on narrow screens: icon+text wrap
@@ -771,6 +794,16 @@ kbd {
 
   .seg { max-width: 100%; overflow-x: auto; }
   .seg-opt { white-space: nowrap; }
+
+  .dashboard-back-btn { display: inline-flex !important; }
+  /* !important because both panes carry their own inline `display` (set
+     for the desktop flex/grid layout) — an inline style always beats a
+     plain class selector, so without it this rule is silently ignored
+     and both panes stay in the DOM side by side, per the codebase's
+     established pattern for every other inline-style override in this
+     same mobile block above. */
+  .dashboard-split[data-mobile-view="list"] .dashboard-detail-pane { display: none !important; }
+  .dashboard-split[data-mobile-view="detail"] .dashboard-list-pane { display: none !important; }
 }
 
 @media (min-width: 761px) {

@@ -30,7 +30,7 @@ export default function NavBar() {
   }, []);
 
   return (
-    <div className="nav" style={{ borderBottom: "1px solid var(--color-divider)", background: "var(--color-surface)", flex: "none" }}>
+    <div className="nav" style={{ borderBottom: "1px solid var(--color-divider)", flex: "none" }}>
       <span className="nav-brand" style={{ display: "flex", alignItems: "center", marginRight: 20 }}>
         <img src="/logo.png" alt="RestaurantGPT" style={{ height: 28, objectFit: "contain", marginRight: 12 }} />
         <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>

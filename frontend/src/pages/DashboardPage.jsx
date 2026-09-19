@@ -123,7 +123,7 @@ function delayMinutes(order) {
   return Math.round((order.delivery_time_seconds - order.sla_target_seconds) / 60);
 }
 
-function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult }) {
+function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack }) {
   if (!order) {
     return (
       <div className="card elev-sm" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -135,10 +135,15 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult }) {
   const delay = delayMinutes(order);
 
   return (
-    <div className="card elev-sm" style={{ padding: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
+    <div className="card elev-sm" style={{ flex: 1, minWidth: 0, padding: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-divider)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flex: "none" }}>
         <div>
-          <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-500)", marginBottom: 4 }}>Order detail</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <button type="button" className="btn btn-ghost btn-icon dashboard-back-btn" aria-label="Back to order list" onClick={onBack} style={{ width: 26, height: 26, margin: "-3px 0" }}>
+              <Icon name="arrow-left" size={14} />
+            </button>
+            <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Order detail</div>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span className="mono" style={{ font: "600 20px var(--font-body)" }}>#{order.aggregator_order_id}</span>
             {statusTag(order)}
@@ -222,6 +227,12 @@ export default function DashboardPage() {
   const [tab, setTab] = useState("eligible");
   const [orders, setOrders] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  // Below 760px the list and detail panes can't sit side by side (see
+  // .dashboard-split's mobile media query in theme.css) — this tracks
+  // which one is showing instead, so opening an order there means a
+  // single-pane swap, not scrolling past the whole list to reach it.
+  // Irrelevant above 760px, where CSS ignores it and shows both panes.
+  const [mobileView, setMobileView] = useState("list");
   const [sweeping, setSweeping] = useState(false);
   const [sweepError, setSweepError] = useState(null);
   const [sweepResult, setSweepResult] = useState(null);
@@ -279,6 +290,7 @@ export default function DashboardPage() {
     const match = orders.find((o) => o.aggregator_order_id === orderParam);
     if (match) {
       setSelectedId(match.id);
+      setMobileView("detail");
       setSearchParams({}, { replace: true });
       return;
     }
@@ -286,6 +298,7 @@ export default function DashboardPage() {
       if (rows[0]) {
         setOrders((prev) => [rows[0], ...(prev || []).filter((o) => o.id !== rows[0].id)]);
         setSelectedId(rows[0].id);
+        setMobileView("detail");
       }
     }).finally(() => setSearchParams({}, { replace: true }));
   }, [orderParam, orders]);
@@ -342,7 +355,22 @@ export default function DashboardPage() {
           <h2 style={{ margin: "0 0 2px" }}>Operations</h2>
           <p className="dim" style={{ margin: 0, fontSize: 13 }}>Live view across orders, SLA compliance and compensation.</p>
         </div>
-        <TimeRangeFilter range={range} customFrom={customFrom} customTo={customTo} onChange={handleRangeChange} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div ref={perfRef} style={{ position: "relative" }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon"
+              aria-label="AI performance"
+              title="AI performance"
+              onClick={() => setPerfOpen((v) => !v)}
+              style={{ color: perfOpen ? "var(--color-accent)" : undefined }}
+            >
+              <Icon name="gauge" size={16} />
+            </button>
+            <AiPerformancePopover open={perfOpen} summary={summary} />
+          </div>
+          <TimeRangeFilter range={range} customFrom={customFrom} customTo={customTo} onChange={handleRangeChange} />
+        </div>
       </div>
 
       <CompensationDigestBanner digest={digest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
@@ -363,34 +391,52 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="dashboard-secondary-row">
-        <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
-        <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
-
-        <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
-        <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
-        <StatTile
-          label="Avg. prep time" icon="clock"
-          value={kpis?.avg_prep_time_seconds != null ? kpis.avg_prep_time_seconds / 60 : null}
-          decimals={1} suffix=" min"
-        />
-        <StatTile label="Lost to cancellations today" value={kpis?.lost_revenue_today} decimals={0} icon="x" prefix="₹" />
-        <StatTile label="Average order value" value={aov} decimals={0} icon="layers" prefix="₹" />
+      {/* Split from one flat 7-tile row into two labeled groups — every
+          KPI here used to carry the same visual weight regardless of
+          whether it was an operational signal or a money signal, which
+          flattens priority (a design-audit finding: "everything shouts
+          at the same volume"). Grouping under a kicker label, macOS
+          System-Settings-section style, doesn't need new components —
+          just tells the eye where a number belongs before it reads the
+          number itself. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="dim" style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Delivery &amp; SLA</div>
+        <div className="dashboard-secondary-row">
+          <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
+          <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
+          <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
+          <StatTile
+            label="Avg. prep time" icon="clock"
+            value={kpis?.avg_prep_time_seconds != null ? kpis.avg_prep_time_seconds / 60 : null}
+            decimals={1} suffix=" min"
+          />
+        </div>
       </div>
 
-      <div className="dashboard-split" style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
-        <div className="card elev-sm" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-            <div className="seg" role="radiogroup" aria-label="Order filter" style={{ flexShrink: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="dim" style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Money</div>
+        <div className="dashboard-secondary-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+          <StatTile label="Compensation identified" value={kpis?.compensation_identified_total} decimals={0} icon="check" prefix="₹" />
+          <StatTile label="Lost to cancellations today" value={kpis?.lost_revenue_today} decimals={0} icon="x" prefix="₹" />
+          <StatTile label="Average order value" value={aov} decimals={0} icon="layers" prefix="₹" />
+        </div>
+      </div>
+
+      <div className="dashboard-split" data-mobile-view={mobileView} style={{ flex: 1, display: "grid", gridTemplateColumns: "460px 1fr", gap: 16, minHeight: 0 }}>
+        <div className="card elev-sm dashboard-list-pane" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="seg" role="radiogroup" aria-label="Order filter" style={{ maxWidth: "100%", overflowX: "auto" }}>
               {TABS.map((t) => (
-                <label key={t.key} className="seg-opt" style={{ fontSize: 12.5 }}>
-                  <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => setTab(t.key)} />
+                <label key={t.key} className="seg-opt" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                  <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => { setTab(t.key); setMobileView("list"); }} />
                   {t.label}
                   {orders && tab === t.key && <span style={{ opacity: 0.55, marginLeft: 4 }}>{orders.length}</span>}
                 </label>
               ))}
             </div>
-            <OrderSearch />
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <OrderSearch />
+            </div>
           </div>
           <div style={{ flex: 1, overflow: "auto" }}>
             {orders === null && <div className="dim" style={{ padding: 16, fontSize: 13 }}>Loading…</div>}
@@ -398,12 +444,14 @@ export default function DashboardPage() {
               <div className="dim" style={{ padding: 16, fontSize: 13 }}>No orders in this view yet.</div>
             )}
             {orders && orders.map((o) => (
-              <OrderRow key={o.id} order={o} selected={o.id === selectedId} onClick={() => setSelectedId(o.id)} />
+              <OrderRow key={o.id} order={o} selected={o.id === selectedId} onClick={() => { setSelectedId(o.id); setMobileView("detail"); }} />
             ))}
           </div>
         </div>
 
-        <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} sweepError={sweepError} sweepResult={sweepResult} />
+        <div className="dashboard-detail-pane" style={{ display: "flex", minHeight: 0 }}>
+          <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} sweepError={sweepError} sweepResult={sweepResult} onBack={() => setMobileView("list")} />
+        </div>
       </div>
     </div>
   );
