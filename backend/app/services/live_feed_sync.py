@@ -17,9 +17,12 @@ demo data source. Swap to the restaurant's stored timezone if this ever
 needs to be exact.
 """
 
+import ipaddress
 import logging
+import socket
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import asyncpg
 import httpx
@@ -31,6 +34,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT_S = 15.0
 
 
+class UnsafeFeedURLError(Exception):
+    """Raised when a tenant-supplied live_feed_url isn't safe for this
+    server to fetch — see validate_feed_url."""
+
+
 def _yesterday() -> date:
     return datetime.now(timezone.utc).date() - timedelta(days=1)
 
@@ -39,7 +47,49 @@ def _default_feed_url() -> str:
     return f"{settings.public_api_base_url}/api/demo-feed/orders"
 
 
-async def _fetch_orders(feed_url: str, day: date, seed_extra: str) -> list[dict]:
+def validate_feed_url(url: str) -> None:
+    """Guards against SSRF through a tenant-configurable URL this server
+    fetches on their behalf (a daily cron, unattended): without this, a
+    tenant could point live_feed_url at the cloud metadata endpoint
+    (169.254.169.254), a private-network service, or localhost, and use
+    the sync's own success/failure/error-shape as an oracle into
+    infrastructure the public internet can't otherwise reach. Only
+    applied to a tenant-supplied URL — the built-in default feed URL
+    (this server's own /api/demo-feed/orders, from public_api_base_url)
+    is trusted app config, not attacker input, and forcing https on it
+    would break plain-http local dev for no security benefit.
+
+    This resolves the hostname once, up front, and rejects it if it maps
+    to a non-public address — it does not pin the connection to that
+    resolved IP, so a host that changes its DNS answer between this check
+    and the actual request (DNS rebinding) is a known residual risk this
+    doesn't close. Closing that fully needs IP-pinned requests or an
+    egress proxy allowlist; not worth the added complexity unless this
+    endpoint becomes a higher-value target than it is today.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise UnsafeFeedURLError("Live feed URL must use https")
+    hostname = parsed.hostname
+    if not hostname:
+        raise UnsafeFeedURLError("Live feed URL is missing a host")
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise UnsafeFeedURLError("Live feed URL host could not be resolved") from None
+    for family, _, _, _, sockaddr in addrinfo:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            raise UnsafeFeedURLError("Live feed URL resolves to a non-public address")
+
+
+async def _fetch_orders(feed_url: str, day: date, seed_extra: str, *, is_default: bool) -> list[dict]:
+    if not is_default:
+        # Defense in depth: re-validated on every fetch, not just when the
+        # tenant sets the URL — a URL saved before this check existed, or
+        # one whose DNS answer has since moved, is still guarded going
+        # forward rather than grandfathered in as trusted.
+        validate_feed_url(feed_url)
     async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
         resp = await client.get(feed_url, params={"date": day.isoformat(), "seed": seed_extra})
         resp.raise_for_status()
@@ -118,14 +168,22 @@ async def sync_yesterday(pool: asyncpg.Pool, restaurant_id: str) -> dict:
                 if claim["live_feed_last_synced_date"] == yesterday:
                     return {"synced": False, "reason": "already synced", "date": yesterday.isoformat(), "new_orders": 0}
 
-                orders = await _fetch_orders(feed_url, yesterday, seed_extra=restaurant_id if is_default else "")
+                orders = await _fetch_orders(
+                    feed_url, yesterday, seed_extra=restaurant_id if is_default else "", is_default=is_default,
+                )
                 inserted = await _insert_orders(conn, rid, orders)
                 await conn.execute(
                     "update restaurants set live_feed_last_synced_date = $1 where id = $2", yesterday, rid,
                 )
-        except Exception as e:
+        except Exception:
+            # The real exception (including which specific check failed,
+            # for an UnsafeFeedURLError) goes to the server log only — an
+            # attacker probing a private/internal URL through this
+            # endpoint must not get connection-refused/timeout/DNS-fail
+            # distinguishable in the response, or the sync becomes a
+            # blind SSRF oracle into whatever this server can reach.
             logger.exception("live feed sync failed for restaurant %s", restaurant_id)
-            return {"synced": False, "reason": f"sync failed: {e}", "feed_url": feed_url}
+            return {"synced": False, "reason": "sync failed — see server logs", "feed_url": feed_url}
 
     return {
         "synced": True,
@@ -170,14 +228,19 @@ async def backfill(pool: asyncpg.Pool, restaurant_id: str, days: int = 30) -> di
         for offset in range(days, 0, -1):
             day = yesterday - timedelta(days=offset - 1)
             try:
-                orders = await _fetch_orders(feed_url, day, seed_extra=restaurant_id if is_default else "")
+                orders = await _fetch_orders(
+                    feed_url, day, seed_extra=restaurant_id if is_default else "", is_default=is_default,
+                )
                 async with conn.transaction():
                     inserted = await _insert_orders(conn, rid, orders)
                 total_new += inserted
                 per_day.append({"date": day.isoformat(), "new_orders": inserted})
-            except Exception as e:
+            except Exception:
+                # Same reasoning as sync_yesterday: don't echo exception
+                # text (including an UnsafeFeedURLError's message) back to
+                # the client.
                 logger.exception("backfill fetch failed for restaurant %s, date %s", restaurant_id, day)
-                per_day.append({"date": day.isoformat(), "error": str(e)})
+                per_day.append({"date": day.isoformat(), "error": "fetch failed — see server logs"})
 
         # The backfill's most recent day is "yesterday" — mark it synced
         # so the regular daily sync doesn't immediately redo it.
@@ -198,14 +261,24 @@ async def backfill(pool: asyncpg.Pool, restaurant_id: str, days: int = 30) -> di
 
 async def sync_all(pool: asyncpg.Pool) -> dict:
     """Used by the cron-secret-gated bulk endpoint — syncs every restaurant
-    that hasn't already been synced for yesterday. Restaurants with no
-    live_feed_url configured still get synced against the built-in demo
-    feed (see _default_feed_url) rather than being skipped, so the "every
-    morning, automatically" behavior works out of the box for every
-    signup, not just ones who went and configured a feed URL.
+    that has explicitly configured its own live_feed_url. Restaurants
+    that haven't are deliberately SKIPPED here, unlike sync_yesterday's
+    own default-demo-feed fallback: that fallback exists for a tenant's
+    own self-service, opt-in action (clicking sync/backfill on their own
+    Dashboard), but this function is what an unattended nightly cron
+    calls — once that cron is enabled, defaulting every real signup that
+    simply never touched Live Feed settings into getting synthetic demo
+    orders written into their live orders table, every night, with no
+    way to have opted out, would silently corrupt their real data. A
+    restaurant that wants the demo feed can still get it by syncing
+    manually themselves.
     """
     async with pool.acquire() as conn:
-        restaurant_ids = [str(r["id"]) for r in await conn.fetch("select id from restaurants")]
+        restaurant_ids = [
+            str(r["id"]) for r in await conn.fetch(
+                "select id from restaurants where live_feed_url is not null"
+            )
+        ]
 
     results = {}
     for rid in restaurant_ids:

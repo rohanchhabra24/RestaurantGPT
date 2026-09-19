@@ -59,13 +59,24 @@ async def scan_and_draft_claims(pool: asyncpg.Pool, restaurant_id: uuid.UUID) ->
         policy_chunk_id = uuid.UUID(chunks[0]["id"]) if chunks else None
 
         async with pool.acquire() as conn:
+            # on conflict do nothing — the SELECT above is only a fast-path
+            # optimization, not the real dedup: two concurrent sweeps (a
+            # double click, or a sweep racing the digest's own lazy call)
+            # can both read this order as a candidate before either
+            # commits. The unique (restaurant_id, order_id) constraint
+            # (migration 014) is the actual safety net; whichever insert
+            # loses the race gets no row back here instead of a duplicate
+            # claim, and is simply skipped rather than double-drafted.
             claim = await conn.fetchrow(
                 """insert into compensation_claims
                    (restaurant_id, order_id, policy_chunk_id, computed_amount, status)
                    values ($1,$2,$3,$4,'drafted')
+                   on conflict (restaurant_id, order_id) do nothing
                    returning id, computed_amount""",
                 restaurant_id, order["id"], policy_chunk_id, round(result.amount, 2),
             )
+        if claim is None:
+            continue
         drafted.append(DraftedClaim(
             claim_id=str(claim["id"]),
             order_id=order["aggregator_order_id"],

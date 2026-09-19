@@ -1,3 +1,4 @@
+import hmac
 import uuid
 from datetime import date
 
@@ -208,6 +209,14 @@ class LiveFeedConfigIn(BaseModel):
 
 @router.post("/live-feed/config")
 async def configure_live_feed(body: LiveFeedConfigIn, restaurant_id: str = Depends(require_tenant)):
+    if body.live_feed_url:
+        # Fail fast here, not just at fetch-time inside the nightly cron —
+        # a tenant pointing this at a private/internal address should get
+        # an immediate, clear rejection instead of a silent 3am failure.
+        try:
+            live_feed_sync.validate_feed_url(body.live_feed_url)
+        except live_feed_sync.UnsafeFeedURLError as e:
+            raise HTTPException(400, str(e))
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -249,7 +258,7 @@ async def sync_live_feed_all(x_cron_secret: str = Header(default="")):
     CRON_SYNC_SECRET is set; an unset secret must never mean "open"."""
     if not settings.cron_sync_secret:
         raise HTTPException(404, "not configured")
-    if x_cron_secret != settings.cron_sync_secret:
+    if not hmac.compare_digest(x_cron_secret, settings.cron_sync_secret):
         raise HTTPException(403, "invalid or missing X-Cron-Secret header")
 
     pool = await get_pool()

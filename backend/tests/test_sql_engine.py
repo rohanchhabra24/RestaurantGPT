@@ -76,3 +76,35 @@ def test_other_tenant_id_elsewhere_in_query_is_fine():
     # id appearing elsewhere too (e.g. inside a legitimate string literal).
     sql = f"SELECT id FROM orders WHERE restaurant_id = '{RID}' AND cancellation_reason = 'mentions {OTHER_RID}'"
     validate_sql(sql, RID)  # should not raise
+
+
+def test_top_level_or_bypass_rejected():
+    # Containing the filter isn't the same as being scoped by it — a bare
+    # OR after the tenant filter still matches the substring/negation
+    # checks above while returning every tenant's rows.
+    sql = f"SELECT id FROM orders WHERE restaurant_id = '{RID}' OR 1=1"
+    with pytest.raises(SQLValidationError):
+        validate_sql(sql, RID)
+
+
+def test_top_level_or_bypass_rejected_when_widening_condition_first():
+    sql = f"SELECT id FROM orders WHERE total_amount > -1 OR restaurant_id = '{RID}'"
+    with pytest.raises(SQLValidationError):
+        validate_sql(sql, RID)
+
+
+def test_parenthesized_or_scoped_by_tenant_filter_is_fine():
+    # An OR is safe once it's nested inside a group that the tenant filter
+    # itself ANDs with — it can never widen past that AND.
+    sql = (
+        f"SELECT id FROM orders WHERE restaurant_id = '{RID}' "
+        "AND (status = 'cancelled' OR delivery_time_seconds > sla_target_seconds)"
+    )
+    validate_sql(sql, RID)  # should not raise
+
+
+def test_or_inside_string_literal_is_fine():
+    # The word "or" inside an actual string value (not SQL structure)
+    # must not be mistaken for a widening top-level OR.
+    sql = f"SELECT id FROM orders WHERE restaurant_id = '{RID}' AND cancellation_reason = 'refused or unreachable'"
+    validate_sql(sql, RID)  # should not raise

@@ -31,6 +31,11 @@ SYSTEM = f"""You write a single read-only PostgreSQL SELECT query against this s
 Rules:
 - SELECT only. Never write INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE/GRANT.
 - Always filter on restaurant_id = '{{restaurant_id}}' (a literal placeholder you must include verbatim).
+- If you need OR logic (e.g. "cancelled or delayed"), always wrap it in
+  parentheses and AND it with the tenant filter, e.g.
+  `restaurant_id = '{{restaurant_id}}' AND (status = 'cancelled' OR delivery_time_seconds > sla_target_seconds)`.
+  Never write OR outside parentheses at the top level of the WHERE clause —
+  it will be rejected.
 - Always include the `id`, `aggregator_order_id`, `platform`, `zone`, `status`,
   `cancellation_reason`, `delivery_time_seconds`, `sla_target_seconds`,
   `weather_flag`, `total_amount`, and `placed_at` columns in the SELECT list if
@@ -56,6 +61,42 @@ FORBIDDEN = re.compile(
 
 class SQLValidationError(Exception):
     pass
+
+
+def _mask_string_literals(sql: str) -> str:
+    """Blanks out the contents of every '...' literal (keeping the quotes
+    and length) so paren-depth tracking and keyword scanning below can't
+    be thrown off by parens or the word "or" appearing inside a string
+    value rather than as actual SQL structure."""
+    return re.sub(r"'(?:[^']|'')*'", lambda m: "'" + " " * (len(m.group(0)) - 2) + "'", sql)
+
+
+def _has_top_level_or(where_clause: str) -> bool:
+    """True if `or` appears at paren-depth 0 in the WHERE clause text —
+    i.e. not safely nested under the mandatory tenant-filter AND.
+
+    Substring presence of `restaurant_id = '<id>'` isn't enough to prove
+    a query is actually scoped to that tenant: `where restaurant_id = 'X'
+    or 1=1` contains the filter but returns every row regardless of it,
+    since a bare OR at the top level of a WHERE clause widens past
+    whatever AND-chain precedes it. `where restaurant_id = 'X' and
+    (status = 'a' or status = 'b')` is fine — that OR only ever applies
+    inside the parenthesized group, which is itself AND-scoped to the
+    tenant filter. This is a paren-depth scan, not a full parser, which
+    matches this module's existing regex/allow-list approach rather than
+    the sqlglot-based AST validator noted as the production upgrade path.
+    """
+    masked = _mask_string_literals(where_clause)
+    depth = 0
+    for match in re.finditer(r"\(|\)|\bor\b", masked, re.IGNORECASE):
+        token = match.group(0)
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            return True
+    return False
 
 
 def validate_sql(sql: str, restaurant_id: str) -> str:
@@ -87,6 +128,22 @@ def validate_sql(sql: str, restaurant_id: str) -> str:
         rf"\bnot\b[^=]{{0,20}}=\s*'{escaped_id}'", stripped, re.IGNORECASE
     ):
         raise SQLValidationError("Generated query negates the tenant filter")
+
+    # Containing the filter isn't the same as being SCOPED by it — a top-
+    # level `OR` after `restaurant_id = '<id>'` (e.g. `... OR 1=1`) still
+    # matches the check above while returning every tenant's rows. Only
+    # the WHERE clause matters here (ORDER BY/GROUP BY/LIMIT can't smuggle
+    # a widening OR into the row filter itself).
+    where_match = re.search(r"\bwhere\b(.*)$", stripped, re.IGNORECASE | re.DOTALL)
+    where_clause = where_match.group(1) if where_match else ""
+    where_clause = re.split(
+        r"\bgroup\s+by\b|\border\s+by\b|\blimit\b", where_clause, maxsplit=1, flags=re.IGNORECASE
+    )[0]
+    if _has_top_level_or(where_clause):
+        raise SQLValidationError(
+            "Generated query has a top-level OR that could widen past the tenant filter "
+            "(wrap OR conditions in parentheses, ANDed with the tenant filter)"
+        )
 
     if not re.search(r"\blimit\b", stripped, re.IGNORECASE) and not re.search(
         r"\b(count|avg|sum|min|max)\s*\(", stripped, re.IGNORECASE
