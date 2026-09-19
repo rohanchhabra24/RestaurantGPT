@@ -62,8 +62,10 @@ export const onboardingApi = {
 
 export const settingsApi = {
   get: () => request("/settings"),
-  update: (responseLanguage) =>
-    request("/settings", { method: "PATCH", body: JSON.stringify({ response_language: responseLanguage }) }),
+  // Accepts a partial — { response_language } and/or { city } — matching
+  // the backend's independently-applied fields (one's a per-member
+  // preference, the other per-restaurant; see settings.py).
+  update: (partial) => request("/settings", { method: "PATCH", body: JSON.stringify(partial) }),
 };
 
 export const api = {

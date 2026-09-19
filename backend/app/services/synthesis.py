@@ -18,6 +18,13 @@ Rules:
   MUST be immediately followed by a citation marker.
 - Cite an order with [ORDER:<aggregator_order_id>] — e.g. [ORDER:4021].
 - Cite a policy chunk with [POLICY:<chunk_id>] using the exact chunk id given.
+- Cite an independently-verified weather fact with [WEATHER:<date>] using the
+  exact date given (YYYY-MM-DD) — ONLY if that date appears in the "Verified
+  weather" section below. Never state that it rained/was clear on a date
+  without that citation, and never claim weather for a date not listed there
+  — an order's own weather_flag column is a separate, self-reported signal;
+  only the "Verified weather" section is independently confirmed, so treat
+  the two as different kinds of evidence and don't conflate them.
 - If the provided data is insufficient to answer confidently, say so plainly
   instead of guessing — an honest "insufficient data" beats a fabricated answer.
 - Be concise. Write for a busy restaurant manager, not a report.
@@ -31,7 +38,7 @@ courier buffer in Zone 3 during rain") does NOT need one — don't invent a
 citation just to attach one to advice. Skip this section entirely for plain
 lookup questions where there's nothing to act on."""
 
-CITATION_RE = re.compile(r"\[(ORDER|POLICY):([^\]]+)\]")
+CITATION_RE = re.compile(r"\[(ORDER|POLICY|WEATHER):([^\]]+)\]")
 
 # Response-language steering (product.md's Hindi/Hinglish-via-prompting
 # phase — no translation infra, no new model, just an instruction). The
@@ -73,8 +80,8 @@ Arabic/Western digits (0-9), never Devanagari digits (०-९) — "₹320" and
 "38 min", not "₹३२०" or "३८ मिनट" — Hindi prose with Western numerals is
 completely normal and expected, and a citation's ref_id has to match the
 underlying data byte-for-byte to verify at all. A citation marker's syntax
-(the square brackets, the literal word ORDER or POLICY, the colon) must
-stay in English even inside a Hindi sentence — e.g. "...आर्डर [ORDER:4021]
+(the square brackets, the literal word ORDER, POLICY, or WEATHER, the colon)
+must stay in English even inside a Hindi sentence — e.g. "...आर्डर [ORDER:4021]
 रद्द हुआ..." is correct; translating "ORDER", the brackets, or the digits
 inside it is not, and breaks verification downstream.""",
     "hinglish": """
@@ -87,8 +94,8 @@ exactly as given, then explain it in Hinglish. Never translate,
 transliterate, or re-derive a number, a ₹ amount, a date, an order id, or a
 citation marker — copy each one character-for-character from the data,
 exactly as you would in an English answer. A citation marker's syntax (the
-square brackets, the literal word ORDER or POLICY, the colon) must stay
-exactly as-is even inside a Hinglish sentence — e.g. "...order [ORDER:4021]
+square brackets, the literal word ORDER, POLICY, or WEATHER, the colon) must
+stay exactly as-is even inside a Hinglish sentence — e.g. "...order [ORDER:4021]
 cancel ho gaya..." is correct; altering "ORDER" or the brackets is not, and
 breaks verification downstream.""",
 }
@@ -116,6 +123,16 @@ def _format_chunks(chunks: list[dict]) -> str:
     return "\n---\n".join(lines)
 
 
+def _format_weather(weather_evidence: list[dict]) -> str:
+    if not weather_evidence:
+        return "(no independently-verified weather data for this investigation)"
+    lines = []
+    for w in weather_evidence:
+        precip = f"{w['precipitation_mm']}mm" if w.get("precipitation_mm") is not None else "unknown amount"
+        lines.append(f"date={w['date']} condition={w['condition']} rainy={w['is_rainy']} precipitation={precip}")
+    return "\n".join(lines)
+
+
 async def synthesize(
     question: str,
     sql_rows: list[dict],
@@ -123,10 +140,15 @@ async def synthesize(
     investigation_steps: str | None = None,
     usage_sink: list | None = None,
     response_language: str = "english",
+    weather_evidence: list[dict] | None = None,
 ) -> str:
     investigation_block = (
         f"\nMulti-step investigation already performed (use these findings, don't repeat the queries):\n{investigation_steps}\n"
         if investigation_steps else ""
+    )
+    weather_block = (
+        f"\nVerified weather (independently checked, NOT the same as an order's own weather_flag column):\n{_format_weather(weather_evidence)}\n"
+        if weather_evidence else ""
     )
     prompt = f"""Question: {question}
 {investigation_block}
@@ -135,7 +157,7 @@ Order data (evidence rows, from SQL):
 
 Policy text (from retrieval):
 {_format_chunks(chunks)}
-
+{weather_block}
 Answer the question now, citing every claim. If investigation steps are given above,
 your answer should explain the root cause using those findings, not just restate the numbers."""
     return await complete(settings.synthesis_model, _system_prompt(response_language), prompt, max_tokens=800, usage_sink=usage_sink)

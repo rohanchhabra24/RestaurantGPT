@@ -68,6 +68,10 @@ export default function UserMenu() {
   const [theme, setThemeState] = useState(getTheme);
   const [language, setLanguage] = useState(null); // null = still loading
   const [languageSaving, setLanguageSaving] = useState(false);
+  const [city, setCity] = useState(null); // null = still loading; "" = loaded, unset
+  const [cityDraft, setCityDraft] = useState("");
+  const [citySaving, setCitySaving] = useState(false);
+  const [cityError, setCityError] = useState(null);
   const ref = useRef(null);
   useClickOutside(ref, () => setOpen(false), open);
 
@@ -77,7 +81,11 @@ export default function UserMenu() {
 
   useEffect(() => {
     if (settingsOpen && language === null) {
-      settingsApi.get().then((s) => setLanguage(s.response_language)).catch(() => setLanguage("english"));
+      settingsApi.get().then((s) => {
+        setLanguage(s.response_language);
+        setCity(s.city || "");
+        setCityDraft(s.city || "");
+      }).catch(() => { setLanguage("english"); setCity(""); });
     }
   }, [settingsOpen, language]);
 
@@ -86,12 +94,27 @@ export default function UserMenu() {
     setLanguage(next);
     setLanguageSaving(true);
     try {
-      await settingsApi.update(next);
+      await settingsApi.update({ response_language: next });
       if (next !== prev) api.track("answer_language_changed", { to: next });
     } catch {
       setLanguage(prev); // revert — the toggle shouldn't claim a change that didn't save
     } finally {
       setLanguageSaving(false);
+    }
+  }
+
+  async function saveCity(e) {
+    e.preventDefault();
+    setCitySaving(true);
+    setCityError(null);
+    try {
+      const { city: saved } = await settingsApi.update({ city: cityDraft.trim() });
+      setCity(saved || "");
+      setCityDraft(saved || "");
+    } catch (err) {
+      setCityError(err.message || "Couldn't save — please try again.");
+    } finally {
+      setCitySaving(false);
     }
   }
 
@@ -180,6 +203,31 @@ export default function UserMenu() {
                 </div>
                 <p className="dim" style={{ fontSize: 11, margin: "6px 0 0", lineHeight: 1.5 }}>
                   {t("settings.answerLanguageHelp")}
+                </p>
+              </div>
+              <div className="hr" />
+              <div>
+                <div className="dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>{t("settings.restaurantLocation")}</div>
+                <form onSubmit={saveCity} style={{ display: "flex", gap: 6 }}>
+                  <input
+                    className="input"
+                    style={{ flex: 1 }}
+                    placeholder={t("settings.restaurantLocationPlaceholder")}
+                    value={cityDraft}
+                    disabled={city === null}
+                    onChange={(e) => setCityDraft(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-secondary"
+                    disabled={city === null || citySaving || cityDraft.trim() === (city || "")}
+                  >
+                    {citySaving ? t("settings.saving") : t("settings.save")}
+                  </button>
+                </form>
+                {cityError && <div className="tag tag-danger" style={{ marginTop: 6 }}>{cityError}</div>}
+                <p className="dim" style={{ fontSize: 11, margin: "6px 0 0", lineHeight: 1.5 }}>
+                  {t("settings.restaurantLocationHelp")}
                 </p>
               </div>
             </div>

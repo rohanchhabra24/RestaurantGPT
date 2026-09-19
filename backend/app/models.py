@@ -12,7 +12,7 @@ MAX_QUESTION_LENGTH = 2000
 
 
 class Citation(BaseModel):
-    type: Literal["order", "policy"]
+    type: Literal["order", "policy", "weather"]
     ref_id: str
     label: str
     verified: bool

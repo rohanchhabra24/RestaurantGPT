@@ -2,19 +2,26 @@
 claim. Every citation the model emits is checked against the actual data
 retrieved THIS turn, not re-judged by another LLM call: an [ORDER:4021]
 marker is only "verified" if order 4021 is actually in this turn's SQL
-result set, and a [POLICY:<chunk_id>] marker only if that chunk id is
-actually among this turn's retrieved chunks. This is a deliberately
-mechanical check — deterministic where the claim type allows it, per
-product.md §2.5.
+result set, a [POLICY:<chunk_id>] marker only if that chunk id is
+actually among this turn's retrieved chunks, and a [WEATHER:<date>]
+marker only if that date is among the dates weather_service actually
+looked up this turn (see multi_agent_investigator.py's weather_agent
+step) — an external API is held to exactly the same bar as internal
+data, not trusted more just because it's a "real" API. This is a
+deliberately mechanical check — deterministic where the claim type
+allows it, per product.md §2.5.
 """
 
 from app.models import Citation
 from app.services.synthesis import extract_citations
 
 
-def verify_citations(answer_text: str, sql_rows: list[dict], chunks: list[dict]) -> tuple[list[Citation], str, float]:
+def verify_citations(
+    answer_text: str, sql_rows: list[dict], chunks: list[dict], weather_evidence: list[dict] | None = None
+) -> tuple[list[Citation], str, float]:
     orders_by_id = {str(r.get("aggregator_order_id")): r for r in sql_rows}
     chunk_lookup = {str(c["id"]): c for c in chunks}
+    weather_by_date = {w["date"]: w for w in (weather_evidence or [])}
 
     raw_citations = extract_citations(answer_text)
     if not raw_citations:
@@ -36,6 +43,16 @@ def verify_citations(answer_text: str, sql_rows: list[dict], chunks: list[dict])
             ok = order is not None
             label = f"Order #{c['ref_id']}"
             detail = _order_detail(order) if order else None
+        elif c["type"] == "weather":
+            # Verified exactly like an order or policy chunk: a [WEATHER:x]
+            # marker is only "verified" if that date is actually among the
+            # dates weather_service independently looked up THIS turn — the
+            # model cannot cite a date it wasn't given real data for, same
+            # mechanical check as everything else in this function.
+            weather = weather_by_date.get(c["ref_id"])
+            ok = weather is not None
+            label = f"Weather on {c['ref_id']}"
+            detail = weather if weather else None
         else:
             chunk = chunk_lookup.get(c["ref_id"])
             ok = chunk is not None
@@ -78,4 +95,4 @@ def strip_citation_markers(answer_text: str) -> str:
     instead, positioned via the same marker text this strips."""
     import re
 
-    return re.sub(r"\[(ORDER|POLICY):[^\]]+\]", "", answer_text)
+    return re.sub(r"\[(ORDER|POLICY|WEATHER):[^\]]+\]", "", answer_text)

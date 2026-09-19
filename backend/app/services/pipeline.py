@@ -28,6 +28,7 @@ class PipelineResult:
         self.regenerated: bool = False
         self.abstained: bool = False
         self.investigation_steps: list[str] = []
+        self.weather_evidence: list[dict] = []
         self.usage: list[dict] = []  # one {"model","input_tokens","output_tokens"} per Claude call this turn
 
     @property
@@ -150,6 +151,7 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
         result.sql_rows = investigation.order_evidence
         result.chunks = investigation.chunks
         result.investigation_steps = [f"[{s.agent}] {s.description}" for s in investigation.steps]
+        result.weather_evidence = investigation.weather_evidence
         investigation_steps_text = investigation.steps_summary_text
         _timed("investigation", t2b, result)
 
@@ -157,11 +159,14 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
     raw_answer = await synthesis.synthesize(
         question, result.sql_rows, result.chunks, investigation_steps_text,
         usage_sink=result.usage, response_language=response_language,
+        weather_evidence=result.weather_evidence,
     )
     _timed("synthesis", t3, result)
 
     t4 = time.perf_counter()
-    citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
+    citations, verdict, coverage = grounding.verify_citations(
+        raw_answer, result.sql_rows, result.chunks, weather_evidence=result.weather_evidence
+    )
 
     if verdict == "no_claims" and coverage == 1.0 and not citations:
         if not result.sql_rows and not result.chunks:
@@ -175,14 +180,18 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
         corrective_question = (
             question
             + "\n\n(Your previous answer cited sources that don't exist in the "
-            "provided data. Answer again using ONLY the order IDs and policy chunk "
-            "ids actually present below, or say the data is insufficient.)"
+            "provided data. Answer again using ONLY the order IDs, policy chunk "
+            "ids, and weather dates actually present below, or say the data is "
+            "insufficient.)"
         )
         raw_answer = await synthesis.synthesize(
             corrective_question, result.sql_rows, result.chunks, investigation_steps_text,
             usage_sink=result.usage, response_language=response_language,
+            weather_evidence=result.weather_evidence,
         )
-        citations, verdict, coverage = grounding.verify_citations(raw_answer, result.sql_rows, result.chunks)
+        citations, verdict, coverage = grounding.verify_citations(
+            raw_answer, result.sql_rows, result.chunks, weather_evidence=result.weather_evidence
+        )
         result.regenerated = True
 
         if verdict == "ungrounded":

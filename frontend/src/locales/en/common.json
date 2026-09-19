@@ -20,6 +20,11 @@
     "answerLanguageHelp": "Order numbers, amounts, and policy citations always come straight from your data either way — only the wording around them changes.",
     "appLanguage": "App language",
     "appLanguageHelp": "Changes the menus, buttons, and labels you see. Independent of Answer language above — you can read the app in English and get answers in Hindi, or the other way around.",
+    "restaurantLocation": "Restaurant location",
+    "restaurantLocationPlaceholder": "e.g. Mumbai",
+    "restaurantLocationHelp": "Used only to independently verify weather on delayed-order dates when investigating an issue — never on every question, and never guessed if left blank.",
+    "save": "Save",
+    "saving": "Saving…",
     "close": "Close",
     "signOut": "Sign out"
   },

@@ -7,7 +7,10 @@ export default function CitationTag({ citation, onClick }) {
   // tell citations apart when an answer cites several) — the plain-language
   // framing the reader actually needs ("what happens if I tap this") goes on
   // title/aria-label instead of replacing the label text.
-  const action = citation.type === "order" ? "Tap to see the order details" : "Tap to see the policy clause";
+  const action =
+    citation.type === "order" ? "Tap to see the order details"
+    : citation.type === "weather" ? "Tap to see the verified weather"
+    : "Tap to see the policy clause";
   return (
     <motion.span
       className={cls}
@@ -19,7 +22,9 @@ export default function CitationTag({ citation, onClick }) {
       role="button"
       aria-label={`${action}: ${citation.label}`}
     >
-      {citation.type === "order" ? <Icon name="db" size={10} /> : <Icon name="file" size={10} />}
+      {citation.type === "order" ? <Icon name="db" size={10} />
+        : citation.type === "weather" ? <Icon name="rain" size={10} />
+        : <Icon name="file" size={10} />}
       {citation.label}
     </motion.span>
   );

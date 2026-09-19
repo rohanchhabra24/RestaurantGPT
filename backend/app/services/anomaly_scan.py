@@ -66,10 +66,12 @@ async def run_scan(restaurant_id: str) -> list[dict]:
         investigation = await multi_agent_investigator.investigate(question, restaurant_id, {"zone": zone})
 
         raw_answer = await synthesis.synthesize(
-            question, investigation.order_evidence, investigation.chunks, investigation.steps_summary_text
+            question, investigation.order_evidence, investigation.chunks, investigation.steps_summary_text,
+            weather_evidence=investigation.weather_evidence,
         )
         citations, verdict, coverage = grounding.verify_citations(
-            raw_answer, investigation.order_evidence, investigation.chunks
+            raw_answer, investigation.order_evidence, investigation.chunks,
+            weather_evidence=investigation.weather_evidence,
         )
         if verdict == "ungrounded":
             continue  # never persist a proactive card that couldn't be verified

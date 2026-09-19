@@ -26,7 +26,18 @@ from dataclasses import dataclass, field
 
 from app.config import settings
 from app.db import get_pool
+from app.services import weather_service
 from app.services.retrieval_engine import hybrid_search
+
+# Bounds how many distinct order dates get an external weather lookup per
+# investigation — worst_orders below is already limited to 5 rows, so this
+# is a belt-and-suspenders cap, not the primary control. The primary
+# control is architectural: this whole module is only ever invoked from
+# the DIAGNOSTIC route (pipeline.py) and the manual anomaly scan
+# (anomaly_scan.py), never from a plain SQL/RETRIEVAL/HYBRID question — a
+# restaurant asking "how many orders yesterday" never triggers an external
+# API call at all.
+MAX_WEATHER_LOOKUPS = 5
 
 # Configurable via settings (INVESTIGATOR_RECENT_WINDOW_DAYS /
 # INVESTIGATOR_BASELINE_WINDOW_DAYS) rather than fixed — anomaly_scan.py
@@ -61,6 +72,7 @@ class InvestigationResult:
     steps: list[InvestigationStep] = field(default_factory=list)
     order_evidence: list[dict] = field(default_factory=list)
     chunks: list[dict] = field(default_factory=list)
+    weather_evidence: list[dict] = field(default_factory=list)
     steps_summary_text: str = ""
 
 
@@ -86,6 +98,55 @@ async def _pick_target_zone(conn, rid, given_zone: str | None) -> str | None:
             if delta > worst_delta:
                 worst_delta, worst_zone = delta, r["zone"]
     return worst_zone
+
+
+async def _investigate_weather(restaurant_id: str, worst_orders: list[dict]) -> tuple[list[dict], InvestigationStep]:
+    """Independently checks real historical weather for the specific dates
+    the worst-delayed orders happened on — the fix for the correlation
+    step above only ever restating orders.weather_flag (self-reported at
+    ingestion, never verified). Bounded to the distinct dates among the
+    orders already fetched (at most MAX_WEATHER_LOOKUPS), and returns a
+    step describing exactly what was found — including "unavailable",
+    which is a legitimate, expected outcome, not an error to hide.
+    """
+    coords = await weather_service.get_coordinates(restaurant_id)
+    if coords is None:
+        return [], InvestigationStep(
+            "weather_agent",
+            "No restaurant location configured — skipped independent weather verification "
+            "(the weather-flagged rate above is still self-reported order data, not "
+            "independently checked). Set a city in Settings to enable this.",
+        )
+
+    dates = sorted({o["placed_at"].date() for o in worst_orders if o.get("placed_at")})[:MAX_WEATHER_LOOKUPS]
+    if not dates:
+        return [], InvestigationStep("weather_agent", "No dated orders to check weather against.")
+
+    evidence: list[dict] = []
+    unavailable = 0
+    for d in dates:
+        w = await weather_service.get_historical_weather(restaurant_id, d)
+        if w is None:
+            unavailable += 1
+            continue
+        evidence.append(w)
+
+    if not evidence:
+        return [], InvestigationStep(
+            "weather_agent",
+            f"Weather data unavailable for all {len(dates)} order date(s) checked (API error) — "
+            "cannot independently confirm or rule out weather as a driver.",
+        )
+
+    rainy = [w for w in evidence if w["is_rainy"]]
+    summary = ", ".join(f"{w['date']} ({w['condition']})" for w in evidence)
+    unavailable_note = f" ({unavailable} date(s) unavailable)" if unavailable else ""
+    step = InvestigationStep(
+        "weather_agent",
+        f"Independently checked historical weather for {len(evidence)} order date(s){unavailable_note}: {summary}. "
+        f"{len(rainy)} of {len(evidence)} confirmed rain.",
+    )
+    return evidence, step
 
 
 async def investigate(question: str, restaurant_id: str, slots: dict) -> InvestigationResult:
@@ -167,6 +228,9 @@ async def investigate(question: str, restaurant_id: str, slots: dict) -> Investi
         f"Cancellation reasons this window: {reason_breakdown}. "
         f"Likely driver: {top_reason or 'no single dominant cause'}.",
     ))
+
+    result.weather_evidence, weather_step = await _investigate_weather(restaurant_id, result.order_evidence)
+    result.steps.append(weather_step)
 
     search_query = DRIVER_SEARCH_QUERY.get(top_reason, DRIVER_SEARCH_QUERY[None])
     result.chunks = await hybrid_search(search_query, restaurant_id, top_k=2)

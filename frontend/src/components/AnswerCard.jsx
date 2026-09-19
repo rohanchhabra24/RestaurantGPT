@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import Icon from "./Icon.jsx";
 import CitationTag from "./CitationTag.jsx";
 
-const MARKER_RE = /\[(ORDER|POLICY):([^\]]+)\]/g;
+const MARKER_RE = /\[(ORDER|POLICY|WEATHER):([^\]]+)\]/g;
 
 function renderAnswerBody(text, citations, onCiteClick) {
   const nodes = [];
@@ -207,7 +207,11 @@ export default function AnswerCard({ message, onCiteClick, onFeedback }) {
               key={`${c.type}:${c.ref_id}`}
               className="tag tag-outline clickable mono"
               onClick={() => onCiteClick(c)}
-              title={c.type === "order" ? "Tap to see the order details" : "Tap to see the policy clause"}
+              title={
+                c.type === "order" ? "Tap to see the order details"
+                : c.type === "weather" ? "Tap to see the verified weather"
+                : "Tap to see the policy clause"
+              }
             >
               {c.label}
             </span>

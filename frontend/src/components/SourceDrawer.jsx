@@ -63,6 +63,31 @@ function OrderPanel({ d }) {
   );
 }
 
+function WeatherPanel({ d }) {
+  return (
+    <div style={{ background: "var(--color-bg)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name="rain" size={16} style={{ color: d.is_rainy ? "var(--color-accent)" : "var(--color-neutral-400)" }} />
+        <div style={{ fontSize: 15, fontWeight: 600, textTransform: "capitalize" }}>{d.condition}</div>
+      </div>
+      <div className="dim mono" style={{ fontSize: 11 }}>{d.date}</div>
+      <div className="hr" />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+        <span>Rain that day</span><span>{d.is_rainy ? "Yes" : "No"}</span>
+      </div>
+      {d.precipitation_mm != null && (
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <span>Precipitation</span><span>{d.precipitation_mm} mm</span>
+        </div>
+      )}
+      <div className="dim" style={{ fontSize: 11, lineHeight: 1.5, marginTop: 2 }}>
+        Independently checked from historical weather records for your restaurant's location —
+        not the same as an order's own self-reported weather flag.
+      </div>
+    </div>
+  );
+}
+
 function PolicyPanel({ d }) {
   return (
     <div style={{ background: "var(--color-bg)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -94,7 +119,9 @@ export default function SourceDrawer({ citation, onClose }) {
             </div>
 
             {citation.detail ? (
-              citation.type === "order" ? <OrderPanel d={citation.detail} /> : <PolicyPanel d={citation.detail} />
+              citation.type === "order" ? <OrderPanel d={citation.detail} />
+              : citation.type === "weather" ? <WeatherPanel d={citation.detail} />
+              : <PolicyPanel d={citation.detail} />
             ) : (
               <div className="dim" style={{ fontSize: 13 }}>No detail available for this citation.</div>
             )}
