@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -141,7 +142,12 @@ export default function UserMenu() {
         )}
       </AnimatePresence>
 
-      {settingsOpen && (
+      {settingsOpen && createPortal(
+        // Portaled to <body> — UserMenu renders from inside Topbar.jsx,
+        // which has backdrop-filter, and per spec that makes it a
+        // containing block for position:fixed descendants. Without this,
+        // .dialog-backdrop's "fixed, full viewport" would actually be
+        // relative to the 56px-tall topbar instead of the real viewport.
         <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && setSettingsOpen(false)}>
           <div className="dialog" style={{ width: 380, maxWidth: "92vw" }}>
             <div className="dialog-title">{t("settings.title")}</div>
@@ -236,7 +242,8 @@ export default function UserMenu() {
               <button type="button" className="btn btn-primary" onClick={signOut}>{t("settings.signOut")}</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -100,6 +100,7 @@ const PATHS = {
   ),
   "arrow-left": <path d="M19 12H5M11 6l-6 6 6 6" />,
   chat: <path d="M4 5.5h16a1 1 0 011 1V15a1 1 0 01-1 1H9l-4.5 4V16H4a1 1 0 01-1-1V6.5a1 1 0 011-1z" />,
+  "chevron-down": <path d="M6 9l6 6 6-6" />,
   gauge: (
     <>
       <path d="M4 16a8 8 0 0116 0" />

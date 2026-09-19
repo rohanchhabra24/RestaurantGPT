@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Folder, FolderOpen, Upload, Check } from "lucide-react";
+import { Upload, Check } from "lucide-react";
 import Icon from "./Icon.jsx";
 import MappingReview from "./MappingReview.jsx";
 import MorphButton from "./MorphButton.jsx";
 import { api } from "../api.js";
 
-const STAGES = ["Uploaded", "Processing", "Indexed"];
+const STAGES = ["Uploaded", "Generating embeddings…", "Indexed"];
 
 export default function UploadDialog({ onClose, onIndexed }) {
   const [files, setFiles] = useState([]);
@@ -74,7 +75,14 @@ export default function UploadDialog({ onClose, onIndexed }) {
   }
 
   if (pendingMapping) {
-    return (
+    // Portaled straight to <body> — this dialog can be opened from inside
+    // Topbar.jsx, which has backdrop-filter on it, and per spec that makes
+    // it a containing block for any position:fixed descendant. Without the
+    // portal, .dialog-backdrop's "fixed, full viewport" positioning was
+    // actually relative to the 56px-tall topbar instead of the real
+    // viewport (confirmed: its own box measured 55px tall), squeezing the
+    // whole dialog into a sliver at the very top of the page.
+    return createPortal(
       <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
         <div className="dialog" style={{ width: 640 }}>
           <div className="dialog-title">Review column mapping — {pendingMapping.file.name}</div>
@@ -90,11 +98,12 @@ export default function UploadDialog({ onClose, onIndexed }) {
             />
           </div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="dialog" style={{ width: 560 }}>
         <div className="dialog-title">Upload operational data</div>
@@ -109,25 +118,19 @@ export default function UploadDialog({ onClose, onIndexed }) {
             style={{
               border: "1.5px dashed var(--color-divider)",
               borderRadius: "var(--radius-md)",
-              padding: 26,
+              padding: "40px 26px",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
               textAlign: "center",
               background: "color-mix(in srgb, var(--color-accent) 6%, transparent)",
               cursor: "pointer",
             }}
           >
-            <Icon name="upload" size={26} style={{ color: "var(--color-accent)" }} />
-            <div style={{ fontSize: 14 }}>Drag CSV, PDF or text files here</div>
-            <div className="dim" style={{ fontSize: 12, marginBottom: 6 }}>Order logs (.csv), SLA policies (.pdf/.md/.txt)</div>
-            <MorphButton
-              iconA={Folder}
-              iconB={FolderOpen}
-              label="Browse files"
-              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-            />
+            <Icon name="upload" size={28} style={{ color: "var(--color-accent)", marginBottom: 4 }} />
+            <div style={{ fontSize: 15, fontWeight: 500 }}>Drag CSV, PDF or text files here, or click to browse</div>
+            <div className="dim" style={{ fontSize: 12 }}>Order logs (.csv), SLA policies (.pdf/.md/.txt)</div>
             <input
               ref={inputRef}
               type="file"
@@ -172,19 +175,20 @@ export default function UploadDialog({ onClose, onIndexed }) {
             <div className="tag tag-danger" style={{ marginTop: 14 }}>{error}</div>
           )}
 
-          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <AnimatePresence mode="popLayout">
               {STAGES.map((label, i) => (
-                <motion.span
-                  key={label}
-                  layout
-                  initial={{ opacity: 0.3 }}
-                  animate={{ opacity: i <= stage ? 1 : 0.35 }}
-                  className={i < stage ? "tag tag-accent" : i === stage && busy ? "tag tag-outline" : "tag tag-neutral"}
-                  style={{ gap: 5 }}
-                >
-                  {i < stage && <Icon name="check" size={10} />}
-                  {label}
+                <motion.span key={label} layout style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  {i > 0 && <span className="dim" style={{ fontSize: 12 }} aria-hidden="true">→</span>}
+                  <motion.span
+                    initial={{ opacity: 0.3 }}
+                    animate={{ opacity: i <= stage ? 1 : 0.35 }}
+                    className={i < stage ? "tag tag-accent" : i === stage && busy ? "tag tag-outline" : "tag tag-neutral"}
+                    style={{ gap: 5 }}
+                  >
+                    {i < stage && <Icon name="check" size={10} />}
+                    {label}
+                  </motion.span>
                 </motion.span>
               ))}
             </AnimatePresence>
@@ -224,6 +228,7 @@ export default function UploadDialog({ onClose, onIndexed }) {
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

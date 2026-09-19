@@ -18,6 +18,64 @@ const TABS = [
   { key: "eligible", label: "Owed compensation" },
 ];
 
+// The 3 values this column is actually constrained to (see migration
+// 001_init.sql) — not guessed, so a filter option can never claim a
+// status that couldn't exist in the data.
+const STATUS_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "delivered", label: "Delivered" },
+  { value: "in_progress", label: "In progress" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+// A small popover filter control — button shows the active choice,
+// clicking opens a list of options anchored to it. Reused for both
+// Platform and Status rather than writing two near-identical dropdowns.
+function FilterDropdown({ label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useClickOutside(ref, () => setOpen(false), open);
+  const current = options.find((o) => o.value === value);
+  const active = value !== "all";
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className={active ? "btn btn-secondary" : "btn btn-ghost"}
+        style={{ fontSize: 12.5, borderColor: active ? "var(--color-accent)" : undefined, color: active ? "var(--color-accent)" : undefined }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label}{active ? `: ${current.label}` : ""}
+        <Icon name="chevron-down" size={12} />
+      </button>
+      {open && (
+        // left:0/right:auto overrides .menu-popover's shared right:0 anchor
+        // (correct for the topbar's account/notification triggers, which
+        // sit at the far right of a wide bar) — these triggers instead sit
+        // at the LEFT of a narrow 460px card, so right-anchoring pushed the
+        // popover's left edge past the card's own edge, where the card's
+        // overflow:hidden silently clipped it.
+        <div className="menu-popover" style={{ minWidth: 170, left: 0, right: "auto" }}>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              className="menu-item"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+            >
+              <span style={{ width: 14, flex: "none", display: "inline-flex" }}>
+                {value === o.value && <Icon name="check" size={12} />}
+              </span>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }) {
   return (
     <div className="card elev-sm" style={{ padding: 16, gap: 8, justifyContent: "space-between" }}>
@@ -155,19 +213,26 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
         </div>
       </div>
 
-      <div style={{ padding: "20px 24px 0", display: "flex", gap: 12, flex: "none", flexWrap: "wrap" }}>
-        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
-          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Order value</div>
-          <div style={{ font: "600 18px var(--font-body)" }}>{order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}</div>
-        </div>
-        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
-          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Delay vs. SLA</div>
-          <div style={{ font: "600 18px var(--font-body)" }}>{delay != null ? `${delay >= 0 ? "+" : ""}${delay} min` : "—"}</div>
-        </div>
-        <div className="card elev-sm" style={{ flex: "1 1 140px", padding: "12px 14px", gap: 4 }}>
-          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>{order.claim ? "Claim amount" : "Compensation owed"}</div>
-          <div style={{ font: "600 18px var(--font-body)", color: "var(--color-accent)" }}>
-            {order.claim ? `₹${order.claim.computed_amount.toFixed(0)}` : order.eligible_amount != null ? `₹${order.eligible_amount.toFixed(0)}` : "—"}
+      {/* One grouped card with divided rows, not 3 separate boxes — the
+          rows all describe the same order, so they read as one fact
+          sheet rather than three competing tiles fighting for attention. */}
+      <div style={{ padding: "20px 24px 0", flex: "none" }}>
+        <div className="card elev-sm" style={{ padding: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+            <span className="dim" style={{ fontSize: 12.5 }}>Order value</span>
+            <span className="mono" style={{ font: "600 14px var(--font-body)" }}>{order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}</span>
+          </div>
+          <div className="hr" style={{ margin: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+            <span className="dim" style={{ fontSize: 12.5 }}>Delay vs. SLA</span>
+            <span className="mono" style={{ font: "600 14px var(--font-body)" }}>{delay != null ? `${delay >= 0 ? "+" : ""}${delay} min` : "—"}</span>
+          </div>
+          <div className="hr" style={{ margin: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+            <span className="dim" style={{ fontSize: 12.5 }}>{order.claim ? "Claim amount" : "Compensation owed"}</span>
+            <span className="mono" style={{ font: "600 14px var(--font-body)", color: "var(--color-accent)" }}>
+              {order.claim ? `₹${order.claim.computed_amount.toFixed(0)}` : order.eligible_amount != null ? `₹${order.eligible_amount.toFixed(0)}` : "—"}
+            </span>
           </div>
         </div>
       </div>
@@ -233,6 +298,8 @@ export default function DashboardPage() {
   // single-pane swap, not scrolling past the whole list to reach it.
   // Irrelevant above 760px, where CSS ignores it and shows both panes.
   const [mobileView, setMobileView] = useState("list");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [sweeping, setSweeping] = useState(false);
   const [sweepError, setSweepError] = useState(null);
   const [sweepResult, setSweepResult] = useState(null);
@@ -282,7 +349,13 @@ export default function DashboardPage() {
   // its status, then select it once the list (or a direct fetch, if it's
   // older than the recent page) confirms it exists.
   useEffect(() => {
-    if (orderParam) setTab("all");
+    if (orderParam) {
+      setTab("all");
+      // A lingering Platform/Status filter from before the jump could hide
+      // the very order this navigation is trying to reveal.
+      setPlatformFilter("all");
+      setStatusFilter("all");
+    }
   }, [orderParam]);
 
   useEffect(() => {
@@ -338,6 +411,28 @@ export default function DashboardPage() {
     } finally {
       setSweeping(false);
     }
+  }
+
+  // Platform is free text in the schema (not a fixed enum, unlike status),
+  // so its option list is built from whatever platforms are actually
+  // present in the current tab's data rather than a hardcoded guess —
+  // it can never offer a platform this restaurant doesn't use.
+  const platformOptions = [
+    { value: "all", label: "All" },
+    ...Array.from(new Set((orders || []).map((o) => o.platform).filter(Boolean))).sort().map((p) => ({ value: p, label: p })),
+  ];
+  const filteredOrders = (orders || []).filter((o) => {
+    if (platformFilter !== "all" && o.platform !== platformFilter) return false;
+    if (statusFilter !== "all" && o.status !== statusFilter) return false;
+    return true;
+  });
+  const activeFilterCount = (platformFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0);
+
+  function changeTab(key) {
+    setTab(key);
+    setMobileView("list");
+    setPlatformFilter("all");
+    setStatusFilter("all");
   }
 
   const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
@@ -445,11 +540,27 @@ export default function DashboardPage() {
             <div className="seg" role="radiogroup" aria-label="Order filter" style={{ maxWidth: "100%", overflowX: "auto" }}>
               {TABS.map((t) => (
                 <label key={t.key} className="seg-opt" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
-                  <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => { setTab(t.key); setMobileView("list"); }} />
+                  <input type="radio" name="ordertab" checked={tab === t.key} onChange={() => changeTab(t.key)} />
                   {t.label}
                   {orders && tab === t.key && <span style={{ opacity: 0.55, marginLeft: 4 }}>{orders.length}</span>}
                 </label>
               ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  className="tag tag-accent clickable"
+                  style={{ gap: 5 }}
+                  onClick={() => { setPlatformFilter("all"); setStatusFilter("all"); }}
+                  title="Clear filters"
+                >
+                  Active filters {activeFilterCount}
+                  <Icon name="x" size={9} />
+                </button>
+              )}
+              <FilterDropdown label="Platform" value={platformFilter} options={platformOptions} onChange={setPlatformFilter} />
+              <FilterDropdown label="Status" value={statusFilter} options={STATUS_OPTIONS} onChange={setStatusFilter} />
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <OrderSearch />
@@ -457,10 +568,12 @@ export default function DashboardPage() {
           </div>
           <div style={{ flex: 1, overflow: "auto" }}>
             {orders === null && <div className="dim" style={{ padding: 16, fontSize: 13 }}>Loading…</div>}
-            {orders && orders.length === 0 && (
-              <div className="dim" style={{ padding: 16, fontSize: 13 }}>No orders in this view yet.</div>
+            {orders && filteredOrders.length === 0 && (
+              <div className="dim" style={{ padding: 16, fontSize: 13 }}>
+                {orders.length === 0 ? "No orders in this view yet." : "No orders match these filters."}
+              </div>
             )}
-            {orders && orders.map((o) => (
+            {orders && filteredOrders.map((o) => (
               <OrderRow key={o.id} order={o} selected={o.id === selectedId} onClick={() => { setSelectedId(o.id); setMobileView("detail"); }} />
             ))}
           </div>
