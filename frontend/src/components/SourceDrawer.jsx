@@ -1,3 +1,4 @@
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import Icon from "./Icon.jsx";
 
@@ -100,44 +101,68 @@ function PolicyPanel({ d }) {
 }
 
 export default function SourceDrawer({ citation, onClose }) {
+  // Built on Radix's unstyled dialog primitives (same reasoning as
+  // Modal.jsx) rather than a plain <div> — this drawer previously had no
+  // focus trap and no Escape-to-close, a gap that mattered more once this
+  // same component started getting used outside chat too (Dashboard's
+  // compensation-claim citations). asChild on Overlay/Content hands Radix's
+  // props/ref to the existing motion.div, so the slide-in animation is
+  // untouched — Radix only adds the behavior (focus trap, Escape, portal,
+  // role="dialog", aria-labelledby), not new visual structure.
   return (
     <AnimatePresence>
       {citation && (
-        <div className="dialog-backdrop" style={{ justifyContent: "flex-end", padding: 0 }} onClick={(e) => e.target === e.currentTarget && onClose()}>
-          <motion.div
-            initial={{ x: 400 }}
-            animate={{ x: 0 }}
-            exit={{ x: 400 }}
-            transition={{ type: "spring", damping: 28, stiffness: 260 }}
-            style={{ width: "min(400px, 100vw)", height: "100%", background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderLeft: "1px solid var(--color-divider)", padding: 22, display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }} className="dim">Behind this answer</div>
-              <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
-                <Icon name="x" size={14} />
-              </button>
-            </div>
+        <DialogPrimitive.Root open onOpenChange={(next) => { if (!next) onClose(); }}>
+          <DialogPrimitive.Portal forceMount>
+            {/* Overlay and Content are siblings, each positioning itself —
+                Radix's Escape/outside-click handling is wired to Content
+                specifically and doesn't fire correctly if Content is
+                nested inside Overlay instead (confirmed: Escape silently
+                did nothing until this was split apart). The backdrop no
+                longer needs flex to align the panel to the right edge —
+                Content now docks itself there directly, the same way
+                Modal.jsx centers itself instead of relying on a flex
+                parent. */}
+            <DialogPrimitive.Overlay asChild>
+              <div className="dialog-backdrop" onClick={onClose} />
+            </DialogPrimitive.Overlay>
+            <DialogPrimitive.Content asChild aria-describedby={undefined}>
+              <motion.div
+                initial={{ x: 400 }}
+                animate={{ x: 0 }}
+                exit={{ x: 400 }}
+                transition={{ type: "spring", damping: 28, stiffness: 260 }}
+                style={{ position: "fixed", top: 0, right: 0, zIndex: 51, width: "min(400px, 100vw)", height: "100%", background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", borderLeft: "1px solid var(--color-divider)", padding: 22, display: "flex", flexDirection: "column", gap: 14, overflow: "auto" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <DialogPrimitive.Title style={{ fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", margin: 0, fontWeight: 400 }} className="dim">Source</DialogPrimitive.Title>
+                  <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
+                    <Icon name="x" size={14} />
+                  </button>
+                </div>
 
-            {citation.detail ? (
-              citation.type === "order" ? <OrderPanel d={citation.detail} />
-              : citation.type === "weather" ? <WeatherPanel d={citation.detail} />
-              : <PolicyPanel d={citation.detail} />
-            ) : (
-              <div className="dim" style={{ fontSize: 13 }}>No detail available for this citation.</div>
-            )}
+                {citation.detail ? (
+                  citation.type === "order" ? <OrderPanel d={citation.detail} />
+                  : citation.type === "weather" ? <WeatherPanel d={citation.detail} />
+                  : <PolicyPanel d={citation.detail} />
+                ) : (
+                  <div className="dim" style={{ fontSize: 13 }}>No detail available for this citation.</div>
+                )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {citation.verified ? (
-                <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={11} />Verified</span>
-              ) : (
-                <span className="tag tag-danger" style={{ gap: 5 }}><Icon name="x" size={11} />Could not verify</span>
-              )}
-              <span className="dim" style={{ fontSize: 12 }}>
-                {citation.verified ? "This matches your actual data exactly" : "This couldn't be confirmed against your data — treat it with caution"}
-              </span>
-            </div>
-          </motion.div>
-        </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {citation.verified ? (
+                    <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={11} />Verified</span>
+                  ) : (
+                    <span className="tag tag-danger" style={{ gap: 5 }}><Icon name="x" size={11} />Could not verify</span>
+                  )}
+                  <span className="dim" style={{ fontSize: 12 }}>
+                    {citation.verified ? "This matches your actual data exactly" : "This couldn't be confirmed against your data — treat it with caution"}
+                  </span>
+                </div>
+              </motion.div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
       )}
     </AnimatePresence>
   );

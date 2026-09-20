@@ -9,6 +9,8 @@ import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
 import CompensationDigestBanner from "../components/CompensationDigestBanner.jsx";
 import OrderSearch from "../components/OrderSearch.jsx";
 import AiPerformancePopover from "../components/AiPerformancePopover.jsx";
+import CitationTag from "../components/CitationTag.jsx";
+import SourceDrawer from "../components/SourceDrawer.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
 import { api } from "../api.js";
 
@@ -182,6 +184,8 @@ function delayMinutes(order) {
 }
 
 function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack }) {
+  const [drawerCitation, setDrawerCitation] = useState(null);
+
   if (!order) {
     return (
       <div className="card elev-sm" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -193,6 +197,7 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
   const delay = delayMinutes(order);
 
   return (
+    <>
     <div className="card elev-sm" style={{ flex: 1, minWidth: 0, padding: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-divider)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flex: "none" }}>
         <div>
@@ -234,6 +239,24 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
               {order.claim ? `₹${order.claim.computed_amount.toFixed(0)}` : order.eligible_amount != null ? `₹${order.eligible_amount.toFixed(0)}` : "—"}
             </span>
           </div>
+          {/* Why this claim exists — persisted at draft time (not
+              recomputed here) so it stays true to what the rules actually
+              said the day it was drafted, even if thresholds change later.
+              The clause is a real citation into the policy text (same
+              CitationTag/SourceDrawer this app uses for chat answers), not
+              just a label — an operator can click through and read the
+              actual clause instead of taking the number on faith. */}
+          {order.claim?.reason && (
+            <>
+              <div className="hr" style={{ margin: 0 }} />
+              <div style={{ padding: "12px 16px", display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 4 }}>
+                <span style={{ fontSize: 12.5, lineHeight: 1.6 }}>{order.claim.reason}</span>
+                {order.claim.citation && (
+                  <CitationTag citation={order.claim.citation} onClick={setDrawerCitation} />
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -249,7 +272,14 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
             Cancellation reason: <span className="mono">{order.cancellation_reason}</span>
           </div>
         )}
-        {order.is_cancelled && (
+        {/* Only for the not-yet-claimed case — eligibility_reason is
+            recomputed live against today's rule thresholds, which is
+            exactly right while nothing's been drafted yet, but once a
+            claim exists its own persisted reason (shown above, in the
+            claim amount card) is the authoritative one; showing both here
+            risked reading as two different explanations if a policy's
+            thresholds ever changed between draft time and now. */}
+        {order.is_cancelled && !order.claim && (
           <>
             <div className="hr" />
             <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>{order.eligibility_reason}</div>
@@ -280,6 +310,8 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
         </div>
       )}
     </div>
+    <SourceDrawer citation={drawerCitation} onClose={() => setDrawerCitation(null)} />
+    </>
   );
 }
 

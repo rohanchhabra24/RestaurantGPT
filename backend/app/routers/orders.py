@@ -29,12 +29,17 @@ ORDER_COLUMNS = """o.id, o.aggregator_order_id, o.placed_at, o.zone, o.platform,
                     o.total_amount, o.prep_time_seconds, o.delivery_time_seconds,
                     o.sla_target_seconds, o.is_cancelled, o.cancellation_reason,
                     o.is_refunded, o.refund_amount, o.weather_flag,
-                    cc.id as claim_id, cc.status as claim_status, cc.computed_amount as claim_amount"""
+                    cc.id as claim_id, cc.status as claim_status, cc.computed_amount as claim_amount,
+                    cc.reason as claim_reason, cc.clause as claim_clause,
+                    pc.id as claim_chunk_id, pc.section_label as claim_chunk_section_label,
+                    pc.chunk_text as claim_chunk_text, pd.source_name as claim_chunk_source_name"""
 
 BASE_QUERY = f"""
     select {ORDER_COLUMNS}
     from orders o
     left join compensation_claims cc on cc.order_id = o.id and cc.restaurant_id = o.restaurant_id
+    left join policy_chunks pc on pc.id = cc.policy_chunk_id
+    left join policy_documents pd on pd.id = pc.policy_document_id
     where o.restaurant_id = $1
 """
 
@@ -63,6 +68,23 @@ def _serialize(row: dict) -> dict:
             "id": str(row["claim_id"]),
             "status": row["claim_status"],
             "computed_amount": float(row["claim_amount"]),
+            "reason": row["claim_reason"],
+            "clause": row["claim_clause"],
+            # Same shape grounding.py's Citation objects use for chat answers
+            # (type/ref_id/label/verified/detail) — the frontend can hand this
+            # straight to the existing CitationTag/SourceDrawer components
+            # instead of this needing its own bespoke rendering.
+            "citation": ({
+                "type": "policy",
+                "ref_id": str(row["claim_chunk_id"]),
+                "label": row["claim_chunk_section_label"] or (row["claim_clause"] or "Policy clause"),
+                "verified": True,
+                "detail": {
+                    "section_label": row["claim_chunk_section_label"],
+                    "source_name": row["claim_chunk_source_name"],
+                    "chunk_text": row["claim_chunk_text"],
+                },
+            } if row["claim_chunk_id"] is not None else None),
         }
 
     eligibility = compensation_rules.evaluate_order(dict(row))

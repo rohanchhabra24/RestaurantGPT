@@ -69,11 +69,11 @@ async def scan_and_draft_claims(pool: asyncpg.Pool, restaurant_id: uuid.UUID) ->
             # claim, and is simply skipped rather than double-drafted.
             claim = await conn.fetchrow(
                 """insert into compensation_claims
-                   (restaurant_id, order_id, policy_chunk_id, computed_amount, status)
-                   values ($1,$2,$3,$4,'drafted')
+                   (restaurant_id, order_id, policy_chunk_id, computed_amount, status, reason, clause)
+                   values ($1,$2,$3,$4,'drafted',$5,$6)
                    on conflict (restaurant_id, order_id) do nothing
                    returning id, computed_amount""",
-                restaurant_id, order["id"], policy_chunk_id, round(result.amount, 2),
+                restaurant_id, order["id"], policy_chunk_id, round(result.amount, 2), result.reason, result.clause,
             )
         if claim is None:
             continue
