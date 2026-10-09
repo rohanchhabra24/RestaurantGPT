@@ -9,6 +9,15 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8000",
     },
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.js",
+    css: false,
+    // Keeps this app's two actual test runners apart: Vitest otherwise
+    // walks into node_modules looking for *.test.* files and can trip
+    // over unrelated packages that ship their own test fixtures.
+    exclude: ["node_modules/**", "dist/**"],
+  },
   build: {
     rollupOptions: {
       output: {

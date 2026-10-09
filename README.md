@@ -354,6 +354,20 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   variable `EVAL_CI_ENABLED` = `true` (and `DEMO_RESTAURANT_ID` if the
   test project's seeded restaurant isn't the default UUID). The job will
   start running — and gating — on the next PR.
+- `frontend/src/**/*.test.jsx` — Vitest + React Testing Library, covering
+  the forgot-password flow added in this pass (`LoginPage`'s mode
+  switching and enumeration-safe messaging, `ResetPasswordPage`'s
+  password-mismatch guard and forced-continue behavior) and
+  `CompensationDigestBanner`'s show/hide rules (dismissed vs. forceShow —
+  the logic behind the Topbar's persistent "₹N owed" badge never losing a
+  real finding). Run with `cd frontend && npm test`; wired into
+  `ci.yml`'s `frontend-build` job, before the production build step.
+  Pinned to `vitest@3` (not the current major) because this project is on
+  Vite 5 and `vitest@4`/`5` require Vite 6+; `tinypool` — a vitest
+  dependency, not something this app uses directly — is pinned higher
+  than vitest's own declared version via `package.json`'s `overrides`
+  field to clear a critical RCE advisory in the version vitest 3 would
+  otherwise pull in.
 - **The golden set checks SQL *results*, not just which lane was picked.**
   `eval_service.score_case`'s `sql_result_ok` asserts the generated SQL's
   actual returned rows against a known fact (`row_count`/`min_row_count`,
@@ -365,9 +379,10 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   numeric-accuracy (SUM) check, not just COUNT.
 - **Still missing, honestly:** integration tests that actually exercise
   the API routes against a database (would need a disposable test Postgres
-  in CI, e.g. a service container running the migrations), and any
-  frontend test coverage at all (no `vitest`/`jest` set up). Neither was in
-  scope for this pass — noting the gap rather than implying it's covered.
+  in CI, e.g. a service container running the migrations). Frontend test
+  coverage now exists but is thin (3 files, the auth/password-reset flow
+  and one Dashboard-adjacent component) — most pages and components still
+  have none. Noting the gap rather than implying either is fully covered.
 
 **Business-tuning constants are now configurable, not hardcoded:**
 `anomaly_scan.py`'s deviation threshold/minimum sample size and
