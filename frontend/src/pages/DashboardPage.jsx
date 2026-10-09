@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
 import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
@@ -10,8 +10,42 @@ import OrderSearch from "../components/OrderSearch.jsx";
 import AiPerformancePopover from "../components/AiPerformancePopover.jsx";
 import CitationTag from "../components/CitationTag.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
+import UploadDialog from "../components/UploadDialog.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
 import { api } from "../api.js";
+
+// Shown instead of a wall of zero-value tiles and blank sparklines once
+// it's clear this restaurant has no order data at all yet (checked
+// against both today's count and the selected range's total — see
+// hasNoData below) — a design-audit finding: an empty dashboard should
+// guide the next step, not just render charts with nothing in them.
+// Styled after ChatPage's own empty-state quick-prompt cards so getting
+// started looks the same whichever page a new operator lands on first.
+function EmptyDashboardState({ onUpload, onAskInChat }) {
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, padding: "40px clamp(16px, 6vw, 40px)" }}>
+      <div style={{ textAlign: "center", maxWidth: 440, display: "flex", flexDirection: "column", gap: 8 }}>
+        <h3 style={{ margin: 0 }}>No delivery data yet</h3>
+        <p className="dim" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>
+          Once your orders are in, this is where you'll see today's revenue, SLA breaches and
+          compensation owed at a glance.
+        </p>
+      </div>
+      <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(240px, 280px))", gap: 14 }}>
+        <div className="card elev-sm" style={{ cursor: "pointer" }} onClick={onUpload}>
+          <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="upload" size={12} />Get started</div>
+          <div className="card-title">Upload your delivery orders</div>
+          <p className="card-body">Connect a CSV export or your live order feed — this page fills in automatically.</p>
+        </div>
+        <div className="card elev-sm" style={{ cursor: "pointer" }} onClick={onAskInChat}>
+          <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="chat" size={12} />Try the assistant</div>
+          <div className="card-title">Ask RestaurantGPT a question</div>
+          <p className="card-body">Once your orders are in, ask things like "which cancellations qualify for compensation?"</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TABS = [
   { key: "all", label: "All orders" },
@@ -386,6 +420,8 @@ export default function DashboardPage() {
   // reload still respects whatever the operator dismissed earlier today.
   const [forceShowDigest, setForceShowDigest] = useState(false);
   const [showRevenue, setShowRevenue] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const orderParam = searchParams.get("order");
   const reviewDigestParam = searchParams.get("reviewDigest");
@@ -533,6 +569,10 @@ export default function DashboardPage() {
   // no reason to make the backend recompute revenue ÷ orders when both are
   // already sitting right here.
   const aov = trends?.totals.orders ? trends.totals.revenue / trends.totals.orders : null;
+  // Both loaded and both genuinely zero — not just "zero" because one of
+  // them is still mid-fetch (null), which would otherwise flash the empty
+  // state on every normal page load before the real numbers arrive.
+  const hasNoData = kpis != null && trends != null && kpis.orders_today === 0 && trends.totals.orders === 0;
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "24px clamp(16px, 5vw, 32px) 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
@@ -559,6 +599,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {hasNoData ? (
+        <EmptyDashboardState onUpload={() => setUploadOpen(true)} onAskInChat={() => navigate("/")} />
+      ) : (
+      <>
       {/* On a phone this pair — the compensation find and the "is anything
           on fire" read — stays pinned while the rest of the page scrolls
           (see .dashboard-sticky-summary's mobile-only rule in theme.css),
@@ -685,6 +729,10 @@ export default function DashboardPage() {
           <OrderDetail order={selectedOrder} onSweep={runSweep} sweeping={sweeping} sweepError={sweepError} sweepResult={sweepResult} onBack={() => setMobileView("list")} />
         </div>
       </div>
+      </>
+      )}
+
+      {uploadOpen && <UploadDialog onClose={() => setUploadOpen(false)} />}
     </div>
   );
 }
