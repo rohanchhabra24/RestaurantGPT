@@ -83,6 +83,64 @@ def test_score_case_hindi_arabic_digits_pass_numerals():
     assert result["passed"] is True
 
 
+def test_score_case_no_expected_sql_result_defaults_ok():
+    # Cases without expected_sql_result (the vast majority) shouldn't be
+    # penalized for it, and don't need to pass sql_rows at all.
+    result = score_case(BASE_CASE, route_taken="SQL", grounding_verdict="grounded", answer_text="x")
+    assert result["sql_result_ok"] is True
+    assert result["passed"] is True
+
+
+def test_score_case_row_count_match_passes():
+    case = {**BASE_CASE, "expected_sql_result": {"row_count": 2}}
+    rows = [{"aggregator_order_id": "1"}, {"aggregator_order_id": "2"}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is True
+    assert result["passed"] is True
+
+
+def test_score_case_row_count_mismatch_fails():
+    case = {**BASE_CASE, "expected_sql_result": {"row_count": 6}}
+    rows = [{"aggregator_order_id": "1"}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is False
+    assert result["passed"] is False
+
+
+def test_score_case_any_value_equals_finds_value_regardless_of_column_name():
+    # The LLM could phrase the aggregate as "count", "total", "n" — any
+    # column name — so this deliberately doesn't bind to one.
+    case = {**BASE_CASE, "expected_sql_result": {"any_value_equals": 2}}
+    rows = [{"weather_cancellations": 2}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is True
+
+
+def test_score_case_any_value_equals_not_found_fails():
+    case = {**BASE_CASE, "expected_sql_result": {"any_value_equals": 2}}
+    rows = [{"count": 5}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is False
+    assert result["passed"] is False
+
+
+def test_score_case_any_value_equals_ignores_non_numeric_cells():
+    # A row with a mix of numeric and non-numeric columns (e.g. a zone
+    # name alongside a count) shouldn't raise on the non-numeric ones.
+    case = {**BASE_CASE, "expected_sql_result": {"any_value_equals": 2}}
+    rows = [{"zone": "Zone 3", "weather_cancellations": 2}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is True
+
+
+def test_score_case_sql_rows_defaults_to_empty_when_not_passed():
+    # A case that expects a SQL result but the caller forgot to pass
+    # sql_rows should fail closed (empty rows), not silently pass.
+    case = {**BASE_CASE, "expected_sql_result": {"row_count": 1}}
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x")
+    assert result["sql_result_ok"] is False
+
+
 def test_gate_english_is_always_baseline():
     gate = gate_for_language("english", pass_rate=0.9, baseline=0.9)
     assert gate == {"pass_rate": 0.9, "cleared": True, "reason": "baseline"}

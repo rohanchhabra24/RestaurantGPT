@@ -46,18 +46,57 @@ def load_golden_set(path: Path = GOLDEN_SET_PATH) -> list[dict]:
     return json.loads(Path(path).read_text())
 
 
+def _sql_result_matches(sql_rows: list[dict], expected: dict) -> bool:
+    """Checks the generated SQL's actual *result*, not just which lane the
+    router picked — the gap flagged in the production-readiness audit:
+    `expected_route` only proves the SQL engine was invoked, never that the
+    numbers it returned were correct. Two checks, combinable:
+
+    - `row_count`: exact number of rows returned.
+    - `any_value_equals`: at least one cell, in any row, equals this value.
+      Not bound to a specific column name on purpose — the LLM can phrase
+      `select count(*)` as `count`, `total`, `n`, whatever it likes, and a
+      correct query shouldn't fail this check just because of that naming
+      choice. This only works against a *known, deterministic* fact — see
+      golden_set.json's cases built on seed/seed.py's fixed
+      MOCKUP_CANCELLATIONS block, not the randomly-generated historical
+      spread, which has no fixed expected value to check against.
+    """
+    if "row_count" in expected and len(sql_rows) != expected["row_count"]:
+        return False
+    if "any_value_equals" in expected:
+        target = expected["any_value_equals"]
+        found = False
+        for row in sql_rows:
+            for value in row.values():
+                try:
+                    if float(value) == float(target):
+                        found = True
+                        break
+                except (TypeError, ValueError):
+                    continue
+            if found:
+                break
+        if not found:
+            return False
+    return True
+
+
 def score_case(
     case: dict,
     *,
     route_taken: str,
     grounding_verdict: str,
     answer_text: str,
+    sql_rows: list[dict] | None = None,
 ) -> dict:
     """Pure scoring logic for a single golden-set case, split out from
     run_case so it can be unit-tested without a live pipeline run (DB +
     Claude API). Takes the pipeline's raw outputs and returns the same
-    route_ok/grounded_ok/content_ok/numerals_ok/passed booleans run_case
-    reports.
+    route_ok/grounded_ok/content_ok/numerals_ok/sql_result_ok/passed
+    booleans run_case reports. sql_rows defaults to None (treated as
+    empty) so every existing caller that doesn't check SQL correctness —
+    including every pre-existing unit test — keeps working unchanged.
     """
     response_language = case.get("response_language", "english")
 
@@ -80,12 +119,17 @@ def score_case(
     if response_language == "hindi":
         numerals_ok = not _DEVANAGARI_DIGITS.search(answer_text)
 
+    sql_result_ok = True
+    if case.get("expected_sql_result"):
+        sql_result_ok = _sql_result_matches(sql_rows or [], case["expected_sql_result"])
+
     return {
         "route_ok": route_ok,
         "grounded_ok": grounded_ok,
         "content_ok": content_ok,
         "numerals_ok": numerals_ok,
-        "passed": route_ok and grounded_ok and content_ok and numerals_ok,
+        "sql_result_ok": sql_result_ok,
+        "passed": route_ok and grounded_ok and content_ok and numerals_ok and sql_result_ok,
     }
 
 
@@ -98,6 +142,7 @@ async def run_case(case: dict, restaurant_id: str) -> dict:
         route_taken=result.route_taken,
         grounding_verdict=result.grounding_verdict,
         answer_text=result.answer_text,
+        sql_rows=result.sql_rows,
     )
 
     return {
