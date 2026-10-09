@@ -170,12 +170,14 @@ async def post_message(
                 """insert into query_traces
                    (message_id, restaurant_id, question, route_taken, sql_result_row_count,
                     claimed_citations, grounding_verdict, citation_coverage,
-                    latency_ms_by_stage, served_from_cache, input_tokens, output_tokens, estimated_cost_usd)
-                   values ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,0,0,0) returning id""",
+                    latency_ms_by_stage, served_from_cache, input_tokens, output_tokens, estimated_cost_usd,
+                    request_id)
+                   values ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,0,0,0,$10) returning id""",
                 msg_row["id"], rid, body.content,
                 cached["route_taken"], len(cached["data_table"]), citations_json,
                 cached["grounding_verdict"], cached["citation_coverage"],
                 json.dumps({"cache_lookup": cache_lookup_ms}),
+                getattr(request.state, "request_id", None),
             )
 
         return MessageOut(
@@ -211,8 +213,8 @@ async def post_message(
                (message_id, restaurant_id, question, route_taken, generated_sql,
                 sql_result_row_count, retrieved_chunk_ids, claimed_citations,
                 grounding_verdict, citation_coverage, latency_ms_by_stage, investigation_steps,
-                input_tokens, output_tokens, estimated_cost_usd)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                input_tokens, output_tokens, estimated_cost_usd, request_id)
+               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
                returning id""",
             msg_row["id"],
             rid,
@@ -229,6 +231,7 @@ async def post_message(
             result.total_input_tokens,
             result.total_output_tokens,
             result.estimated_cost_usd,
+            getattr(request.state, "request_id", None),
         )
 
     return MessageOut(

@@ -54,7 +54,7 @@ async def _list_zones_with_deviation(restaurant_id: str) -> list[dict]:
     return flagged
 
 
-async def run_scan(restaurant_id: str) -> list[dict]:
+async def run_scan(restaurant_id: str, request_id: str | None = None) -> list[dict]:
     pool = await get_pool()
     rid = uuid.UUID(restaurant_id)
     flagged_zones = await _list_zones_with_deviation(restaurant_id)
@@ -80,13 +80,14 @@ async def run_scan(restaurant_id: str) -> list[dict]:
             trace_row = await conn.fetchrow(
                 """insert into query_traces
                    (restaurant_id, question, route_taken, sql_result_row_count, retrieved_chunk_ids,
-                    claimed_citations, grounding_verdict, citation_coverage, investigation_steps)
-                   values ($1,$2,'DIAGNOSTIC',$3,$4,$5,$6,$7,$8) returning id""",
+                    claimed_citations, grounding_verdict, citation_coverage, investigation_steps, request_id)
+                   values ($1,$2,'DIAGNOSTIC',$3,$4,$5,$6,$7,$8,$9) returning id""",
                 rid, question, len(investigation.order_evidence),
                 [uuid.UUID(c["id"]) for c in investigation.chunks],
                 json.dumps([c.model_dump() for c in citations]),
                 verdict, coverage,
                 json.dumps([f"[{s.agent}] {s.description}" for s in investigation.steps]),
+                request_id,
             )
             card = await conn.fetchrow(
                 """insert into diagnosis_cards

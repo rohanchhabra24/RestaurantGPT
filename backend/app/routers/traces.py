@@ -41,7 +41,7 @@ async def list_traces(limit: int = 50, restaurant_id: str = Depends(require_tena
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "select id, question, route_taken, grounding_verdict, citation_coverage, "
-            "sql_result_row_count, latency_ms_by_stage, investigation_steps, created_at "
+            "sql_result_row_count, latency_ms_by_stage, investigation_steps, created_at, request_id "
             "from query_traces where restaurant_id = $1 order by created_at desc limit $2",
             uuid.UUID(restaurant_id), limit,
         )

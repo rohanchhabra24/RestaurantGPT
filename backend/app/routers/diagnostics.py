@@ -24,7 +24,7 @@ def _serialize_card(row: dict) -> dict:
 @limiter.limit(settings.ip_rate_limit_ai)
 async def run_scan(request: Request, restaurant_id: str = Depends(require_tenant)):
     await rate_limit.check_and_record(restaurant_id, "anomaly_scan")
-    cards = await anomaly_scan.run_scan(restaurant_id)
+    cards = await anomaly_scan.run_scan(restaurant_id, request_id=getattr(request.state, "request_id", None))
     return {"zones_scanned": True, "cards_created": len(cards), "cards": cards}
 
 

@@ -22,7 +22,8 @@ frontend/  React + Vite
    `006_auth_multitenancy.sql`, `007_csv_mapping_profiles.sql`,
    `008_response_language.sql`, `009_compensation_digest.sql`,
    `010_app_events.sql`, `011_live_feed.sql`, `012_message_feedback.sql`,
-   `013_weather.sql`, `014_compensation_claims_unique.sql`.
+   `013_weather.sql`, `014_compensation_claims_unique.sql`,
+   `015_compensation_claims_reason.sql`, `016_request_id.sql`.
 3. **Manual step (can't be done from a migration):** in the dashboard, go to
    Authentication → Hooks → "Customize Access Token (JWT) Claims" and select
    `public.custom_access_token_hook` as the hook function. Without this,
@@ -282,10 +283,23 @@ the full list and the text-to-SQL tenant-filter hardening.
 - The Postgres connection now requires TLS (`ssl="require"` in `db.py`)
   rather than trusting the connection string alone to ask for it.
 - Every request is logged (method, path, status, client IP, latency) via
-  `AccessLogMiddleware`; auth failures, rate-limit hits, and 5xx errors are
+  `AccessLogMiddleware`, as structured JSON lines (`JsonLogFormatter` in
+  `app/middleware.py`) rather than a hand-formatted string — a real log
+  aggregator can index/filter on `status`, `duration_ms`, `request_id`
+  etc. directly. Auth failures, rate-limit hits, and 5xx errors are
   logged at WARNING/ERROR specifically so they stand out in whatever log
   aggregator the deployment points stdout at — this app doesn't ship its
   own log storage.
+- **Correlation id ties a request to its trace.** `RequestIdMiddleware`
+  mints a UUID per request (or honors a well-formed upstream
+  `X-Request-ID`, never trusting a malformed one — that header is also
+  echoed back on the response), stored as `request.state.request_id`.
+  Every `query_traces` row this request produces carries the same id
+  (migration `016_request_id.sql`), and the Answer Log page (Phase A.2's
+  trace inspector) shows it on each trace's detail view — hand it to
+  support, and the matching access-log line and the exact pipeline trace
+  are both one grep/filter away. Nullable and not backfilled on older
+  rows, honestly: they predate this and have no request to tie back to.
 - `CORS_ALLOWED_ORIGINS` is now a real env var (defaults to the Vite dev
   server) — set it to the deployed frontend's actual origin in production.
 - **Manual step still needed:** restrict direct public access to the

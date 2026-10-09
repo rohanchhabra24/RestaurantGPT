@@ -66,8 +66,8 @@ async def run_sweep(request: Request, restaurant_id: str = Depends(require_tenan
             """insert into query_traces
                (restaurant_id, question, route_taken, generated_sql, sql_result_row_count,
                 retrieved_chunk_ids, claimed_citations, grounding_verdict, citation_coverage,
-                latency_ms_by_stage, input_tokens, output_tokens, estimated_cost_usd)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id""",
+                latency_ms_by_stage, input_tokens, output_tokens, estimated_cost_usd, request_id)
+               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id""",
             rid, SWEEP_QUESTION, pipeline_result.route_taken, pipeline_result.generated_sql,
             len(pipeline_result.sql_rows),
             [uuid.UUID(c["id"]) for c in pipeline_result.chunks],
@@ -76,6 +76,7 @@ async def run_sweep(request: Request, restaurant_id: str = Depends(require_tenan
             json.dumps(pipeline_result.latency_ms_by_stage),
             pipeline_result.total_input_tokens, pipeline_result.total_output_tokens,
             pipeline_result.estimated_cost_usd,
+            getattr(request.state, "request_id", None),
         )
         if drafted:
             await conn.execute(

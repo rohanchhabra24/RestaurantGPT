@@ -11,12 +11,20 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 from app.config import settings
 from app.db import close_pool, get_pool
-from app.middleware import AccessLogMiddleware, SecurityHeadersMiddleware
+from app.middleware import AccessLogMiddleware, JsonLogFormatter, RequestIdMiddleware, SecurityHeadersMiddleware
 from app.routers import compensation, conversations, demo_feed, diagnostics, eval, events, ingest, insights, onboarding, orders, settings as settings_router, traces
 from app.services import embeddings
 from app.services.ip_rate_limit import limiter
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# JSON lines on stdout, not basicConfig's plain "%(asctime)s ..." string —
+# this app ships no log storage of its own (see middleware.py's module
+# docstring), so whatever platform's log aggregator stdout lands in needs
+# a shape it can actually index/filter on, including the request_id field
+# AccessLogMiddleware attaches to every line, which is what ties a log
+# line back to the query_traces row the same request produced.
+_handler = logging.StreamHandler()
+_handler.setFormatter(JsonLogFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 logger = logging.getLogger(__name__)
 
 
@@ -56,6 +64,11 @@ if settings.force_https:
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AccessLogMiddleware)
+# Added last so it's outermost (Starlette applies middleware in reverse
+# registration order) — every other middleware's own request handling,
+# AccessLogMiddleware's log line included, needs request.state.request_id
+# already set by the time it runs.
+app.add_middleware(RequestIdMiddleware)
 
 app.include_router(conversations.router)
 app.include_router(ingest.router)

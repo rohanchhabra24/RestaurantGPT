@@ -115,6 +115,11 @@ function TraceDetail({ trace, loading, onCiteClick, onBack }) {
           <span className="dim mono" style={{ fontSize: 11.5 }}>{totalMs}ms total</span>
           {trace.estimated_cost_usd != null && <span className="dim mono" style={{ fontSize: 11.5 }}>${Number(trace.estimated_cost_usd).toFixed(4)}</span>}
         </div>
+        {trace.request_id && (
+          <div className="dim mono" style={{ fontSize: 10.5, marginTop: 8 }} title="Ties this trace to its request log line — hand this to support if something looked wrong">
+            Request {trace.request_id}
+          </div>
+        )}
       </div>
 
       {trace.generated_sql && (
