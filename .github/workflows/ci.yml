@@ -45,7 +45,11 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Settings() requires this (no default) — was ANTHROPIC_API_KEY
+          # before the Groq migration; left stale, which meant this job
+          # would have crashed on Settings() the moment EVAL_CI_ENABLED
+          # was ever flipped on, never actually running an eval.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           DEMO_RESTAURANT_ID: ${{ vars.DEMO_RESTAURANT_ID }}
         run: python -m eval.run_eval
 

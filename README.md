@@ -343,11 +343,17 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   compile-check and a frontend production build on every PR. The golden-set
   eval (`backend/eval/run_eval.py`) is wired in as a separate job but stays
   off until a repo variable `EVAL_CI_ENABLED=true` is set and
-  `SUPABASE_DB_URL`/`SUPABASE_URL`/`ANTHROPIC_API_KEY` are added as repo
+  `SUPABASE_DB_URL`/`SUPABASE_URL`/`GROQ_API_KEY` are added as repo
   secrets — it needs a real (ideally a dedicated test) Supabase project and
-  spends real Anthropic tokens on every run, so it shouldn't silently start
+  spends real Groq tokens on every run, so it shouldn't silently start
   charging a card or hitting a production database the moment this file
-  lands.
+  lands. **To turn it on:** repo → Settings → Secrets and variables →
+  Actions → add the three secrets above (pointed at a disposable test
+  Supabase project, not production — the eval harness drafts real
+  compensation claims against whatever database it's given), then add
+  variable `EVAL_CI_ENABLED` = `true` (and `DEMO_RESTAURANT_ID` if the
+  test project's seeded restaurant isn't the default UUID). The job will
+  start running — and gating — on the next PR.
 - **Still missing, honestly:** integration tests that actually exercise
   the API routes against a database (would need a disposable test Postgres
   in CI, e.g. a service container running the migrations), and any
