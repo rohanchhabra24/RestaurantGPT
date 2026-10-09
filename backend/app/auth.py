@@ -23,7 +23,7 @@ valid token with no `restaurant_id` claim; `require_tenant` treats that as
 import logging
 
 import jwt
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Query
 from jwt import PyJWKClient
 
 from app.config import settings
@@ -89,6 +89,27 @@ async def require_tenant(authorization: str | None = Header(None)) -> str:
     """The dependency every tenant-scoped route uses. Returns just the
     restaurant_id string so route signatures stay simple."""
     ctx = await get_current_user(authorization)
+    if not ctx.restaurant_id:
+        raise HTTPException(
+            403,
+            "Your account isn't linked to a restaurant yet — complete onboarding first "
+            "(POST /api/onboarding/restaurant).",
+        )
+    return ctx.restaurant_id
+
+
+async def require_tenant_sse(authorization: str | None = Header(None), token: str | None = Query(None)) -> str:
+    """Same gate as require_tenant, for the one route that can't use a
+    header: browser EventSource has no way to set a custom Authorization
+    header, so it's the one place in this app a JWT has to travel as a
+    query parameter instead. Still goes through the same verification —
+    the only difference is where the token is read from. Supabase access
+    tokens are short-lived, which is the standard mitigation for a token
+    appearing in a URL (server logs, browser history): a leaked one is
+    only useful for its remaining lifetime, typically under an hour.
+    """
+    header = authorization or (f"Bearer {token}" if token else None)
+    ctx = await get_current_user(header)
     if not ctx.restaurant_id:
         raise HTTPException(
             403,

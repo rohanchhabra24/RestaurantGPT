@@ -22,6 +22,14 @@ export function setUnauthorizedHandler(fn) {
   unauthorizedHandler = fn;
 }
 
+// EventSource (used for the proactive-alerts SSE stream) can't set a
+// custom Authorization header the way fetch can, so that one caller needs
+// the raw token to put in the URL itself instead — see events/stream's
+// require_tenant_sse on the backend for the other half of this.
+export function getAccessToken() {
+  return currentAccessToken;
+}
+
 export function setAccessToken(token) {
   currentAccessToken = token;
   // A fresh token (a new sign-in, or Supabase's own background refresh
