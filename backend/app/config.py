@@ -84,6 +84,22 @@ class Settings(BaseSettings):
     investigator_recent_window_days: int = 7
     investigator_baseline_window_days: int = 28
 
+    # Push alerting (app/services/alerting.py) — the cost and ungrounded-
+    # rate checks (usage_tracking.py / insights.py) were pull-only: someone
+    # had to open the Insights dashboard to see them. POST
+    # /api/alerts/check (cron-secret-gated, same CRON_SYNC_SECRET as the
+    # live-feed sync endpoint — same threat model) iterates every
+    # restaurant and pushes to whichever channels below are configured.
+    # Each channel is independently optional and off by default; an unset
+    # value must never mean "send anyway with a blank target."
+    slack_webhook_url: str = ""
+    alert_email_to: str = ""
+    alert_email_from: str = "alerts@restaurantgpt.local"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+
     model_config = SettingsConfigDict(env_file=".env")
 
 

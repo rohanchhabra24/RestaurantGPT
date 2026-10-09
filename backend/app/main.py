@@ -12,7 +12,7 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from app.config import settings
 from app.db import close_pool, get_pool
 from app.middleware import AccessLogMiddleware, JsonLogFormatter, RequestIdMiddleware, SecurityHeadersMiddleware
-from app.routers import compensation, conversations, demo_feed, diagnostics, eval, events, ingest, insights, onboarding, orders, settings as settings_router, traces
+from app.routers import alerts, compensation, conversations, demo_feed, diagnostics, eval, events, ingest, insights, onboarding, orders, settings as settings_router, traces
 from app.services import embeddings
 from app.services.ip_rate_limit import limiter
 
@@ -82,6 +82,7 @@ app.include_router(orders.router)
 app.include_router(settings_router.router)
 app.include_router(events.router)
 app.include_router(demo_feed.router)
+app.include_router(alerts.router)
 
 
 @app.get("/api/health")

@@ -427,6 +427,30 @@ at a real external feed instead, and how to enable the included GitHub
 Actions workflow (`.github/workflows/daily-live-feed-sync.yml`) for
 unattended daily syncs even when nobody opens the app that day.
 
+## Push alerting
+
+The cost alert (`usage_tracking.check_cost_alert`) and the ungrounded-rate
+alert (`insights.check_ungrounded_alert`) used to be pull-only — someone
+had to open Insights to see either one. `POST /api/alerts/check`
+(`app/routers/alerts.py`) checks both, for every restaurant, and pushes
+to whichever channels are configured in `.env` — same "disabled unless
+configured" rule as everything else secret-gated in this app:
+
+- **Slack** — set `SLACK_WEBHOOK_URL` to an
+  [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL.
+- **Email** — set `ALERT_EMAIL_TO` plus `SMTP_HOST`
+  (`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD` as your relay needs) —
+  any SMTP relay works, not tied to one provider.
+
+Cron-secret-gated with the same `CRON_SYNC_SECRET` the Live Feed sync
+endpoint already uses (same threat model, no reason for a second
+secret), and triggered the same way: an included GitHub Actions workflow
+(`.github/workflows/daily-alert-check.yml`), off until a repo variable
+`ALERT_CHECK_ENABLED=true` is set alongside the `BACKEND_BASE_URL`/
+`CRON_SYNC_SECRET` secrets daily-live-feed-sync.yml already needs. No
+new "already alerted today" dedup state — the daily cron's own schedule
+is already the natural ceiling on how often a channel fires.
+
 ## Engagement instrumentation
 
 A lightweight event log (`app_events`, migration 010) — not a third-party

@@ -1,0 +1,31 @@
+name: Daily Alert Check
+
+"on":
+  schedule:
+    # 06:00 UTC — after the live-feed sync (03:00 UTC) has had time to
+    # land that day's data, so a fresh cost/ungrounded-rate check reflects
+    # it rather than racing it.
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    # Needs the deployed backend's URL + its CRON_SYNC_SECRET as repo
+    # secrets (the same ones daily-live-feed-sync.yml already uses — same
+    # threat model, no reason for a second secret), and
+    # ALERT_CHECK_ENABLED=true as a repo variable (Settings -> Secrets and
+    # variables -> Actions). Skipped rather than failing every morning
+    # until those are configured, same pattern as ci.yml's
+    # eval-golden-set job and the live-feed-sync workflow.
+    #
+    # Slack/email delivery itself is configured separately, server-side,
+    # via the backend's own SLACK_WEBHOOK_URL / SMTP_* env vars (see
+    # README's "Push alerting" section) — this workflow only triggers the
+    # check, it doesn't carry delivery credentials.
+    if: ${{ vars.ALERT_CHECK_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backend alert check for every restaurant
+        run: |
+          curl -sS -f -X POST "${{ secrets.BACKEND_BASE_URL }}/api/alerts/check" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SYNC_SECRET }}"
