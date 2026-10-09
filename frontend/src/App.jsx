@@ -20,6 +20,7 @@ const DiagnosesPage = lazy(() => import("./pages/DiagnosesPage.jsx"));
 const LandingPage = lazy(() => import("./pages/LandingPage.jsx"));
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage.jsx"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage.jsx"));
 
 // Same blank-while-resolving look the auth-loading states below already
 // use (see Gate) — a lazy chunk on a fast connection resolves in well
@@ -87,7 +88,7 @@ function AuthedApp() {
 }
 
 function Gate() {
-  const { loading, session } = useAuth();
+  const { loading, session, passwordRecovery } = useAuth();
   const [onboarded, setOnboarded] = useState(null); // null = checking
 
   useEffect(() => {
@@ -99,6 +100,14 @@ function Gate() {
   }, [session]);
 
   if (loading) return PAGE_FALLBACK;
+  // Checked before the normal session/onboarding branches below — a
+  // password-recovery click produces a real, authenticated session (see
+  // authContext.jsx), so without this an existing user resetting their
+  // password would sail straight past this into the dashboard having
+  // never actually set a new one.
+  if (passwordRecovery) {
+    return <Suspense fallback={PAGE_FALLBACK}><ResetPasswordPage /></Suspense>;
+  }
   if (!session) {
     return (
       <Suspense fallback={PAGE_FALLBACK}>

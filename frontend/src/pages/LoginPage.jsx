@@ -3,16 +3,20 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useAuth, SESSION_EXPIRED_KEY } from "../authContext.jsx";
 
 export default function LoginPage() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPasswordForEmail } = useAuth();
   const [searchParams] = useSearchParams();
   // Landing page's "Get started" links here with ?mode=signup so the
   // form opens on the right tab instead of making people click twice.
+  // "forgot" is a third mode, reachable only from the link below — not a
+  // URL param, since there's no case where someone should land on it
+  // directly from outside the app the way signup's link does.
   const [mode, setMode] = useState(searchParams.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [signupMessage, setSignupMessage] = useState(null);
+  const [resetSent, setResetSent] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Set by api.js's unauthorized handler (authContext.jsx) right before
@@ -39,13 +43,20 @@ export default function LoginPage() {
       if (mode === "signin") {
         const { error } = await signIn(email, password);
         if (error) throw error;
-      } else {
+      } else if (mode === "signup") {
         const { data, error } = await signUp(email, password);
         if (error) throw error;
         if (!data.session) {
           setSignupMessage("Check your email to confirm your account, then sign in.");
           setMode("signin");
         }
+      } else {
+        const { error } = await resetPasswordForEmail(email);
+        if (error) throw error;
+        // Always the same message whether or not the address has an
+        // account — a different one here would let this form be used to
+        // check which emails are registered.
+        setResetSent(true);
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -72,9 +83,11 @@ export default function LoginPage() {
           <img src="/logo.png" alt="RestaurantGPT" style={{ height: 22, objectFit: "contain" }} />
         </Link>
 
-        <h2 style={{ margin: "0 0 4px", fontSize: 17 }}>{mode === "signin" ? "Sign in" : "Create an account"}</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: 17 }}>
+          {mode === "signin" ? "Sign in" : mode === "signup" ? "Create an account" : "Reset your password"}
+        </h2>
         <p className="dim" style={{ margin: "0 0 18px", fontSize: 13 }}>
-          {mode === "signin" ? "Welcome back." : "You'll set up your restaurant next."}
+          {mode === "signin" ? "Welcome back." : mode === "signup" ? "You'll set up your restaurant next." : "We'll email you a link to set a new one."}
         </p>
 
         {sessionExpired && (
@@ -83,41 +96,72 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input
-            className="input"
-            type="email"
-            placeholder="you@restaurant.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-          <input
-            className="input"
-            type="password"
-            placeholder="Password (min 8 characters)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            required
-            minLength={8}
-          />
-          {error && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{error}</div>}
-          {signupMessage && <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{signupMessage}</div>}
-          <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? "…" : mode === "signin" ? "Sign in" : "Sign up"}
-          </button>
-        </form>
+        {mode === "forgot" && resetSent ? (
+          <>
+            <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", marginBottom: 10 }}>
+              If an account exists for {email}, a reset link is on its way — check your email.
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              onClick={() => { setMode("signin"); setResetSent(false); }}
+            >
+              Back to sign in
+            </button>
+          </>
+        ) : (
+          <>
+            <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input
+                className="input"
+                type="email"
+                placeholder="you@restaurant.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+              {mode !== "forgot" && (
+                <input
+                  className="input"
+                  type="password"
+                  placeholder="Password (min 8 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  required
+                  minLength={8}
+                />
+              )}
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  style={{ alignSelf: "flex-end", fontSize: 12.5, background: "none", border: "none", padding: 0, color: "var(--color-accent)", cursor: "pointer" }}
+                  onClick={() => { setMode("forgot"); setError(null); setSignupMessage(null); }}
+                >
+                  Forgot password?
+                </button>
+              )}
+              {error && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{error}</div>}
+              {signupMessage && <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{signupMessage}</div>}
+              <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+                {busy ? "…" : mode === "signin" ? "Sign in" : mode === "signup" ? "Sign up" : "Send reset link"}
+              </button>
+            </form>
 
-        <button
-          type="button"
-          className="btn btn-ghost btn-block"
-          style={{ marginTop: 10 }}
-          onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-        >
-          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-        </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              style={{ marginTop: 10 }}
+              onClick={() => {
+                setMode(mode === "signup" ? "signin" : mode === "forgot" ? "signin" : "signup");
+                setError(null);
+              }}
+            >
+              {mode === "signin" ? "Need an account? Sign up" : mode === "signup" ? "Already have an account? Sign in" : "Back to sign in"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -10,6 +10,15 @@ export const SESSION_EXPIRED_KEY = "rgpt_session_expired";
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined); // undefined = still loading
+  // Supabase fires a dedicated PASSWORD_RECOVERY event (not just a normal
+  // SIGNED_IN) when the session came from clicking a password-reset email
+  // link — that session is real and otherwise indistinguishable from a
+  // normal one, so without tracking this separately, Gate (App.jsx) would
+  // happily route a password-reset click straight into the dashboard
+  // (or onboarding, for a user mid-signup) without ever asking for a new
+  // password. App.jsx checks this flag before its normal session/onboarding
+  // branching.
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     // api.js calls this when a request 401s and there's a token on file —
@@ -34,9 +43,10 @@ export function AuthProvider({ children }) {
       // the login page, where retrying is possible.
       .catch(() => setSession(null));
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setAccessToken(newSession?.access_token ?? null);
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
 
     return () => sub.subscription.unsubscribe();
@@ -53,6 +63,18 @@ export function AuthProvider({ children }) {
     // runs at token-issuance time — refresh so the *next* request carries it,
     // rather than telling the user to sign out and back in.
     refreshSession: () => supabase.auth.refreshSession(),
+    // redirectTo must be in this Supabase project's Authentication → URL
+    // Configuration → Redirect URLs allow-list, or Supabase silently drops
+    // it and falls back to the project's default Site URL instead — see
+    // README's auth section for the manual dashboard step this needs.
+    resetPasswordForEmail: (email) =>
+      supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` }),
+    updatePassword: (password) => supabase.auth.updateUser({ password }),
+    passwordRecovery,
+    // Called once the new password is actually set — lets Gate fall back
+    // through to its normal session/onboarding routing instead of showing
+    // the reset-password screen forever for the rest of this session.
+    clearPasswordRecovery: () => setPasswordRecovery(false),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

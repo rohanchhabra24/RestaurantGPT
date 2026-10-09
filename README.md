@@ -253,11 +253,23 @@ the full list and the text-to-SQL tenant-filter hardening.
 - Frontend password field raised to `minLength=8` — client-side only, so it
   needs a matching **Authentication → Policies → Minimum password length**
   in the Supabase dashboard to actually be enforced.
+- **Forgot-password flow (code, done):** `LoginPage.jsx`'s "Forgot
+  password?" link sends a Supabase reset email
+  (`resetPasswordForEmail`); clicking it lands back on `/reset-password`,
+  which `authContext.jsx` recognizes via Supabase's `PASSWORD_RECOVERY`
+  auth event and forces open regardless of onboarding/session state (see
+  `App.jsx`'s `Gate`) so a password-reset click can never skip straight
+  into the dashboard without actually setting a new password. The
+  "account exists" response is intentionally identical whether or not the
+  email is registered, to avoid leaking which addresses have accounts.
 - **Manual dashboard steps still needed:** turn on **Confirm email** (the
   signup flow already handles the "check your email" case, assuming it's
-  on), and confirm the password-reset link expiry under
-  **Authentication → Email Templates / Policies** is short (Supabase's
-  default is reasonable; just don't lengthen it).
+  on); add this deployment's `/reset-password` URL (e.g.
+  `https://yourapp.com/reset-password`) to **Authentication → URL
+  Configuration → Redirect URLs** — without it Supabase silently drops
+  the reset link's intended destination; and confirm the password-reset
+  link expiry under **Authentication → Email Templates / Policies** is
+  short (Supabase's default is reasonable; just don't lengthen it).
 
 **Deployment (code, done):**
 - Every response carries security headers (`HSTS`, `X-Content-Type-Options:
