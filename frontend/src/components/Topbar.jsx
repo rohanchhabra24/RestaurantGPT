@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Icon from "./Icon.jsx";
 import NotificationsMenu from "./NotificationsMenu.jsx";
@@ -19,11 +20,26 @@ import { api } from "../api.js";
 // to the logo, not a rival to it.
 export default function Topbar({ navOpen, onToggleNav }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [groundedRate, setGroundedRate] = useState(null);
+  const [digest, setDigest] = useState(null);
 
   useEffect(() => {
     api.getInsightsSummary().then((d) => setGroundedRate(d.total_queries > 0 ? d.grounded_rate : null)).catch(() => {});
+  }, []);
+
+  // The compensation-find badge: lives here, not just on the Dashboard's
+  // own banner, because dismissing that banner used to make a real
+  // four-figure finding disappear for the rest of the day with no way
+  // back short of remembering to check again (a design-audit finding —
+  // "high-dollar findings should never permanently vanish on an
+  // accidental click"). This stays visible everywhere in the app,
+  // dismissed or not, for as long as the money is still unclaimed —
+  // clicking it jumps to the Dashboard and re-opens the full banner
+  // there regardless of whether it was dismissed earlier today.
+  useEffect(() => {
+    api.getCompensationDigest().then(setDigest).catch(() => {});
   }, []);
 
   return (
@@ -49,6 +65,24 @@ export default function Topbar({ navOpen, onToggleNav }) {
       <span className="app-topbar-tagline">{t("nav.tagline")}</span>
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        {digest && digest.new_claims_count > 0 && (
+          <button
+            type="button"
+            className="tag tag-danger mono app-topbar-digest-badge"
+            style={{ gap: 5, cursor: "pointer", border: "none" }}
+            onClick={() => navigate("/dashboard?reviewDigest=1")}
+            title="New compensation found today — click to review"
+          >
+            <motion.span
+              animate={{ opacity: [1, 0.55, 1], scale: [1, 0.85, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+              style={{ display: "inline-flex" }}
+            >
+              <Icon name="bell" size={11} />
+            </motion.span>
+            ₹{Number(digest.new_recoverable_amount).toFixed(0)} owed
+          </button>
+        )}
         {groundedRate != null && (
           <span className="tag tag-accent mono app-topbar-grounded-tag" style={{ gap: 5 }} title={t("nav.groundedTooltip")}>
             <motion.span

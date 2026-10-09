@@ -378,9 +378,17 @@ export default function DashboardPage() {
   const [customTo, setCustomTo] = useState(null);
   const [trends, setTrends] = useState(null);
   const [digest, setDigest] = useState(null);
+  // Set when arriving via the Topbar's persistent "₹N owed" badge — that
+  // badge stays up regardless of today's dismissed status (see Topbar.jsx),
+  // so clicking it needs to force the banner back open here even though
+  // the backend still has this digest recorded as dismissed. Frontend-only
+  // override: it doesn't touch the persisted status, so a plain page
+  // reload still respects whatever the operator dismissed earlier today.
+  const [forceShowDigest, setForceShowDigest] = useState(false);
   const [showRevenue, setShowRevenue] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const orderParam = searchParams.get("order");
+  const reviewDigestParam = searchParams.get("reviewDigest");
 
   useEffect(() => {
     api.getOperationsSummary().then(setKpis).catch(() => {});
@@ -398,6 +406,18 @@ export default function DashboardPage() {
     }).catch(() => {});
   }, []);
 
+  // Arriving from the Topbar's persistent compensation badge
+  // (/dashboard?reviewDigest=1) — force the banner open even if it was
+  // dismissed earlier today, and jump straight to the claims tab since
+  // that's what the badge click means ("let me see what's owed").
+  useEffect(() => {
+    if (reviewDigestParam) {
+      setForceShowDigest(true);
+      setTab("eligible");
+      setSearchParams({}, { replace: true });
+    }
+  }, [reviewDigestParam]);
+
   function reviewDigestClaims() {
     setTab("eligible");
     if (digest) {
@@ -412,6 +432,7 @@ export default function DashboardPage() {
     api.dismissDigest(digest.id).catch(() => {});
     api.track("digest_dismissed", { new_claims_count: digest.new_claims_count, new_recoverable_amount: digest.new_recoverable_amount });
     setDigest((prev) => (prev ? { ...prev, status: "dismissed" } : prev));
+    setForceShowDigest(false);
   }
 
   // Arriving from the nav's order lookup (?order=<aggregator_order_id>) —
@@ -545,7 +566,7 @@ export default function DashboardPage() {
           floor doesn't lose the two things worth checking first. Above
           mobile width the rule is a no-op and this sits in normal flow. */}
       <div className="dashboard-sticky-summary" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-        <CompensationDigestBanner digest={digest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
+        <CompensationDigestBanner digest={digest} forceShow={forceShowDigest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
 
         {/* The "is anything on fire" read, above everything else on this
             page including revenue — see CriticalOpsTile's own comment for

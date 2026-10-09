@@ -4,8 +4,13 @@ import Icon from "./Icon.jsx";
 // recoverable compensation" button — surfaces the same kind of result
 // (new claims + amount) unprompted, once a day, instead of requiring the
 // operator to remember to click anything.
-export default function CompensationDigestBanner({ digest, onReview, onDismiss }) {
-  if (!digest || digest.status === "dismissed" || digest.new_claims_count === 0) return null;
+export default function CompensationDigestBanner({ digest, forceShow = false, onReview, onDismiss }) {
+  // forceShow overrides an already-dismissed status — set by the
+  // Dashboard when the operator arrives via the Topbar's persistent
+  // "₹N owed" badge, which stays up precisely because a dismissed
+  // banner is otherwise gone until tomorrow's digest.
+  if (!digest || digest.new_claims_count === 0) return null;
+  if (digest.status === "dismissed" && !forceShow) return null;
 
   return (
     <div
