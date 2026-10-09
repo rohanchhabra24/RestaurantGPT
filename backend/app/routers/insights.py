@@ -200,6 +200,24 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
             "select coalesce(sum(computed_amount), 0) from compensation_claims where restaurant_id = $1",
             rid,
         )
+        # Root-cause callout for the SLA breach tile (the audit's "surface
+        # the why alongside the what" finding) — which zone today's
+        # breaches are concentrated in, not just how many happened. Only
+        # worth naming once a zone actually has more than one breach;
+        # a single stray breach isn't a "pattern" a manager needs pointed
+        # out, it's just the one order they'd already be looking at.
+        top_zone = await conn.fetchrow(
+            """select zone, count(*) as breach_count
+               from orders
+               where restaurant_id = $1 and placed_at >= date_trunc('day', now())
+                 and zone is not null
+                 and delivery_time_seconds is not null and sla_target_seconds is not null
+                 and delivery_time_seconds > sla_target_seconds
+               group by zone
+               order by breach_count desc
+               limit 1""",
+            rid,
+        )
 
     trend_total = trend["total"] or 0
     return {
@@ -211,6 +229,7 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
         "avg_delivery_delay_seconds": round(float(trend["avg_delay_seconds"]), 0) if trend["avg_delay_seconds"] is not None else None,
         "cancellation_rate_pct": round(trend["cancelled"] / trend_total * 100, 1) if trend_total else 0.0,
         "compensation_identified_total": float(compensation_identified),
+        "top_problem_zone": f"{top_zone['breach_count']} in {top_zone['zone']}" if top_zone and top_zone["breach_count"] >= 2 else None,
     }
 
 
