@@ -133,6 +133,37 @@ def test_score_case_any_value_equals_ignores_non_numeric_cells():
     assert result["sql_result_ok"] is True
 
 
+def test_score_case_min_row_count_floor_passes_when_exceeded():
+    # The floor variant — what golden_set.json's real cases actually use,
+    # since seed.py's randomly-generated spread can add extra rows beyond
+    # the fixed deterministic set (see _sql_result_matches's docstring).
+    case = {**BASE_CASE, "expected_sql_result": {"min_row_count": 6}}
+    rows = [{"id": i} for i in range(9)]  # 3 extra from the random spread
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is True
+
+
+def test_score_case_min_row_count_floor_fails_when_under():
+    case = {**BASE_CASE, "expected_sql_result": {"min_row_count": 6}}
+    rows = [{"id": i} for i in range(4)]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is False
+
+
+def test_score_case_any_value_at_least_passes_when_exceeded():
+    case = {**BASE_CASE, "expected_sql_result": {"any_value_at_least": 2}}
+    rows = [{"weather_cancellations": 5}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is True
+
+
+def test_score_case_any_value_at_least_fails_when_under():
+    case = {**BASE_CASE, "expected_sql_result": {"any_value_at_least": 2}}
+    rows = [{"weather_cancellations": 1}]
+    result = score_case(case, route_taken="SQL", grounding_verdict="grounded", answer_text="x", sql_rows=rows)
+    assert result["sql_result_ok"] is False
+
+
 def test_score_case_sql_rows_defaults_to_empty_when_not_passed():
     # A case that expects a SQL result but the caller forgot to pass
     # sql_rows should fail closed (empty rows), not silently pass.

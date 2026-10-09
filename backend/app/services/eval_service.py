@@ -50,34 +50,46 @@ def _sql_result_matches(sql_rows: list[dict], expected: dict) -> bool:
     """Checks the generated SQL's actual *result*, not just which lane the
     router picked — the gap flagged in the production-readiness audit:
     `expected_route` only proves the SQL engine was invoked, never that the
-    numbers it returned were correct. Two checks, combinable:
+    numbers it returned were correct. Four checks, combinable:
 
-    - `row_count`: exact number of rows returned.
-    - `any_value_equals`: at least one cell, in any row, equals this value.
-      Not bound to a specific column name on purpose — the LLM can phrase
-      `select count(*)` as `count`, `total`, `n`, whatever it likes, and a
-      correct query shouldn't fail this check just because of that naming
-      choice. This only works against a *known, deterministic* fact — see
-      golden_set.json's cases built on seed/seed.py's fixed
-      MOCKUP_CANCELLATIONS block, not the randomly-generated historical
-      spread, which has no fixed expected value to check against.
+    - `row_count` / `any_value_equals`: exact match.
+    - `min_row_count` / `any_value_at_least`: lower-bound match.
+
+    The lower-bound variants exist because seed/seed.py's fixed
+    MOCKUP_CANCELLATIONS block (what these checks are built against — see
+    golden_set.json) guarantees a *floor*, not a ceiling: that same script
+    also inserts a randomly-generated 14-day spread of orders with
+    unseeded `random`, which can itself land extra cancelled orders on
+    "yesterday" in the same zone — a real flakiness bug caught in review
+    (an exact row_count:6 check failed on roughly 1 in 3 seed runs). The
+    fixed rows are always present; anything beyond them is not
+    deterministic, so only a floor can be asserted against it.
+
+    Not bound to a specific column name on purpose for the any_value*
+    checks — the LLM can phrase `select count(*)` as `count`, `total`,
+    `n`, whatever it likes, and a correct query shouldn't fail just
+    because of that naming choice.
     """
     if "row_count" in expected and len(sql_rows) != expected["row_count"]:
         return False
-    if "any_value_equals" in expected:
-        target = expected["any_value_equals"]
-        found = False
+    if "min_row_count" in expected and len(sql_rows) < expected["min_row_count"]:
+        return False
+
+    def _numeric_cells():
         for row in sql_rows:
             for value in row.values():
                 try:
-                    if float(value) == float(target):
-                        found = True
-                        break
+                    yield float(value)
                 except (TypeError, ValueError):
                     continue
-            if found:
-                break
-        if not found:
+
+    if "any_value_equals" in expected:
+        target = float(expected["any_value_equals"])
+        if not any(v == target for v in _numeric_cells()):
+            return False
+    if "any_value_at_least" in expected:
+        floor = float(expected["any_value_at_least"])
+        if not any(v >= floor for v in _numeric_cells()):
             return False
     return True
 

@@ -10,16 +10,16 @@
     "question": "How many orders were cancelled in Zone 3 yesterday?",
     "expected_route": "SQL",
     "expect_grounded": true,
-    "expected_sql_result": { "row_count": 6 },
-    "note": "SQL-correctness check, not just route check: seed/seed.py's MOCKUP_CANCELLATIONS is a fixed 6-row block, always dated 'yesterday' relative to whenever seed.py last ran — this is a known, deterministic fact, not an estimate."
+    "expected_sql_result": { "min_row_count": 6 },
+    "note": "SQL-correctness check, not just route check: seed/seed.py's MOCKUP_CANCELLATIONS is a fixed 6-row block, always dated 'yesterday' relative to whenever seed.py last ran. A floor, not an exact count: that same script also inserts a randomly-generated 14-day order spread (unseeded) that can itself add extra Zone 3 cancellations on 'yesterday' — the fixed 6 are always present, anything beyond isn't deterministic."
   },
   {
     "id": "weather-cancellations-zone3-yesterday",
     "question": "How many of yesterday's cancellations in Zone 3 were due to a weather delay?",
     "expected_route": "SQL",
     "expect_grounded": true,
-    "expected_sql_result": { "any_value_equals": 2 },
-    "note": "Of MOCKUP_CANCELLATIONS' fixed 6 rows, exactly 2 have cancellation_reason='weather_delay' (order 4021, 4198) — any_value_equals rather than row_count since a correct query here most naturally returns one row with a count, not 2 rows."
+    "expected_sql_result": { "any_value_at_least": 2 },
+    "note": "Of MOCKUP_CANCELLATIONS' fixed 6 rows, at least 2 have cancellation_reason='weather_delay' (order 4021, 4198) — a floor for the same reason as cancelled-zone3-yesterday, since the random spread can also roll a weather_delay cancellation in Zone 3 on the same day."
   },
   {
     "id": "policy-weather-clause",
