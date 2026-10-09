@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
-import ActivityTile from "../components/ActivityTile.jsx";
 import RoundedKpiTile from "../components/RoundedKpiTile.jsx";
 import HeroStatTile from "../components/HeroStatTile.jsx";
 import TimeRangeFilter from "../components/TimeRangeFilter.jsx";
@@ -92,23 +91,62 @@ function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }
   );
 }
 
-// "-8.5 min" reads as ambiguous (is negative good?) to anyone who isn't
-// already thinking in signed deltas. Words + color say the same thing
-// unambiguously: green and "ahead" is good news, red and "behind" isn't.
-function DeliveryPaceTile({ avgDelaySeconds }) {
-  const known = avgDelaySeconds != null;
-  const minutes = known ? Math.abs(avgDelaySeconds / 60) : 0;
-  const ahead = known && avgDelaySeconds <= 0;
+// The "is anything on fire right now" tile — the one thing a shift
+// manager actually needs an answer to before anything else on this page
+// (a design-audit finding: revenue used to outrank this, but revenue
+// can wait five minutes and an SLA breach spike can't). Full-width and
+// placed above the hero row on purpose, and its own color carries the
+// verdict (calm accent tint when clear, danger tint the moment there's
+// something to look at) so the "ok vs. not ok" read doesn't depend on
+// parsing the number first. problemZone is optional (wired in once the
+// backend exposes it) — when present it answers "where", not just "how
+// many", right in the same glance.
+function CriticalOpsTile({ breaches, avgDelaySeconds, problemZone }) {
+  const known = breaches != null;
+  const hasIssue = known && breaches > 0;
+  const minutes = avgDelaySeconds != null ? Math.abs(avgDelaySeconds / 60) : null;
+  const behind = avgDelaySeconds != null && avgDelaySeconds > 0;
+
   return (
-    <div className="card elev-sm tile-wide" style={{ padding: 16, gap: 6, justifyContent: "space-between" }}>
-      <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Icon name="clock" size={11} />
-        Delivery speed
+    <div
+      className="card elev-sm"
+      style={{
+        padding: "18px 22px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16,
+        border: `1px solid ${hasIssue ? "var(--color-danger)" : "var(--color-accent-800)"}`,
+        background: hasIssue ? "color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))" : "var(--color-accent-900)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+        <span
+          style={{
+            width: 42, height: 42, borderRadius: "50%", flex: "none",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            background: hasIssue ? "var(--color-danger)" : "var(--color-accent-800)",
+          }}
+        >
+          <Icon name={hasIssue ? "alert" : "check"} size={18} style={{ color: hasIssue ? "#fff" : "var(--color-accent-200)" }} />
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div className="card-kicker" style={{ marginBottom: 2 }}>Right now</div>
+          <div style={{ font: "600 24px var(--font-body)" }}>
+            {known ? <CountUp value={breaches} decimals={0} /> : "—"} SLA breach{breaches === 1 ? "" : "es"} today
+            {hasIssue && problemZone && <span className="dim" style={{ fontWeight: 400, fontSize: 15 }}> &nbsp;·&nbsp; {problemZone}</span>}
+          </div>
+          <div className="dim" style={{ fontSize: 12.5 }}>
+            {hasIssue ? "Worth a look before the next rush." : "Nothing breaching SLA right now."}
+          </div>
+        </div>
       </div>
-      <div style={{ font: "600 24px var(--font-body)", color: !known ? undefined : ahead ? "var(--color-accent)" : "var(--color-danger)" }}>
-        {known ? <><CountUp value={minutes} decimals={1} suffix=" min" /></> : "—"}
-      </div>
-      {known && <div className="dim" style={{ fontSize: 11 }}>{ahead ? "ahead of target, on average" : "behind target, on average"}</div>}
+      {minutes != null && (
+        <div style={{ textAlign: "right", flex: "none" }}>
+          <div className="card-kicker" style={{ marginBottom: 2 }}>Delivery speed</div>
+          <div style={{ font: "600 20px var(--font-body)", color: behind ? "var(--color-danger)" : "var(--color-accent)" }}>
+            <CountUp value={minutes} decimals={1} suffix=" min" />
+          </div>
+          <div className="dim" style={{ fontSize: 11.5 }}>{behind ? "behind target, on average" : "ahead of target, on average"}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -479,8 +517,8 @@ export default function DashboardPage() {
     <div style={{ flex: 1, overflow: "auto", padding: "24px clamp(16px, 5vw, 32px) 28px", display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h2 style={{ margin: "0 0 2px" }}>Operations</h2>
-          <p className="dim" style={{ margin: 0, fontSize: 13 }}>Live view across orders, SLA compliance and compensation.</p>
+          <h2 style={{ margin: "0 0 2px" }}>Delivery Operations</h2>
+          <p className="dim" style={{ margin: 0, fontSize: 13 }}>Live view across delivery orders, SLA compliance and compensation.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div ref={perfRef} style={{ position: "relative" }}>
@@ -500,7 +538,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <CompensationDigestBanner digest={digest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
+      {/* On a phone this pair — the compensation find and the "is anything
+          on fire" read — stays pinned while the rest of the page scrolls
+          (see .dashboard-sticky-summary's mobile-only rule in theme.css),
+          so a manager scrolled deep into the order list while walking the
+          floor doesn't lose the two things worth checking first. Above
+          mobile width the rule is a no-op and this sits in normal flow. */}
+      <div className="dashboard-sticky-summary" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <CompensationDigestBanner digest={digest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
+
+        {/* The "is anything on fire" read, above everything else on this
+            page including revenue — see CriticalOpsTile's own comment for
+            why. SLA breaches + delivery pace used to live further down,
+            inside the "Delivery & SLA" group below; promoted here instead
+            of duplicated there. */}
+        <CriticalOpsTile
+          breaches={kpis?.sla_breaches_today}
+          avgDelaySeconds={kpis?.avg_delivery_delay_seconds}
+          problemZone={kpis?.top_problem_zone}
+        />
+      </div>
 
       <div className="dashboard-hero-row">
         <HeroStatTile
@@ -528,22 +585,14 @@ export default function DashboardPage() {
           number itself. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div className="dim" style={{ fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Delivery &amp; SLA</div>
-        {/* 3 even columns, not 4 — DeliveryPaceTile is 2 columns wide by
-            design (.tile-wide), so 3 square tiles + 1 wide tile in a
-            4-column grid is 5 column-units trying to fit in 4, and the
-            4th tile always wraps onto its own row alone. Giving the wide
-            tile its own full-width row below instead means the grid
-            math actually divides evenly. */}
-        <div className="dashboard-secondary-row" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+        <div className="dashboard-secondary-row" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
           <RoundedKpiTile label="Cancellation rate" value={kpis?.cancellation_rate_pct} icon="x" danger={kpis?.cancellation_rate_pct > 20} />
-          <ActivityTile label="SLA breaches today" value={kpis?.sla_breaches_today} icon="clock" />
           <StatTile
             label="Avg. prep time" icon="clock"
             value={kpis?.avg_prep_time_seconds != null ? kpis.avg_prep_time_seconds / 60 : null}
             decimals={1} suffix=" min"
           />
         </div>
-        <DeliveryPaceTile avgDelaySeconds={kpis?.avg_delivery_delay_seconds} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

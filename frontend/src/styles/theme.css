@@ -614,14 +614,16 @@ kbd {
 .dashboard-secondary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .tile-wide { grid-column: span 2; }
 
-/* Master-detail on the order list — desktop shows both panes side by
-   side (the default .dashboard-split grid), but below 760px there is no
-   room for that, so without this the full order list (up to 100 rows)
-   renders above the detail pane and reaching it means scrolling past
-   all of them. Below 760px this swaps to iOS/macOS-style single-pane
-   navigation instead: whichever pane data-mobile-view names is shown,
-   the other is removed from layout entirely, and .dashboard-back-btn
-   (hidden on desktop) becomes the way back to the list. */
+/* Master-detail on the order list — full desktop width shows both panes
+   side by side (the default .dashboard-split grid), but below 1024px —
+   tablet included, not just phone — the list pane's fixed 460px eats
+   most of the available width and leaves the detail pane clipped (seen
+   first-hand on an 820px tablet: the order detail column ran off the
+   right edge). Below that width this swaps to iOS/macOS-style
+   single-pane navigation instead: whichever pane data-mobile-view names
+   is shown, the other is removed from layout entirely, and
+   .dashboard-back-btn (hidden on desktop) becomes the way back to the
+   list — see the shared tablet+mobile rule further down. */
 .dashboard-back-btn { display: none; }
 
 /* A header row that wraps as two clean units instead of squeezing its
@@ -950,27 +952,55 @@ kbd {
   .chat-sidebar-toggle { display: inline-flex !important; }
 
   .example-prompts-grid { grid-template-columns: 1fr !important; }
-  .dashboard-split { grid-template-columns: 1fr !important; }
   .dashboard-hero-row { grid-template-columns: 1fr !important; }
   .dashboard-secondary-row { grid-template-columns: repeat(2, 1fr) !important; }
 
   .seg { max-width: 100%; overflow-x: auto; }
   .seg-opt { white-space: nowrap; }
 
+  /* Keeps the compensation find + "anything on fire" read on screen while
+     scrolling past the order list below it — walking the floor with one
+     hand is exactly when losing that context to a long scroll hurts most.
+     top:0 (not the page's 56px topbar height) because this sticks inside
+     DashboardPage's own scroll container, which starts right where the
+     topbar ends, not inside the viewport the topbar also occupies. A
+     background is required for a sticky element with content scrolling
+     underneath it, or the order rows show through as they pass behind it. */
+  .dashboard-sticky-summary {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-bg);
+  }
+}
+
+@media (min-width: 761px) {
+  .chat-sidebar-toggle { display: none !important; }
+  .chat-sidebar-scrim { display: none !important; }
+}
+
+/* Order list master-detail: single-pane drill-down from phone width all
+   the way up through tablet (1024px) — wider than the general 760px
+   mobile breakpoint on purpose. The sidebar/topbar chrome above has room
+   to stay in its full desktop form at tablet widths, but the order
+   list's fixed 460px pane does not: paired with a detail pane at
+   ~768-1024px it leaves the detail column clipped at the right edge
+   (confirmed on an 820px tablet). Below 1024px this swaps to
+   iOS/macOS-style single-pane navigation instead: whichever pane
+   data-mobile-view names is shown, the other is removed from layout
+   entirely, and .dashboard-back-btn (hidden above 1024px) becomes the
+   way back to the list. */
+@media (max-width: 1024px) {
+  .dashboard-split { grid-template-columns: 1fr !important; }
   .dashboard-back-btn { display: inline-flex !important; }
   /* !important because both panes carry their own inline `display` (set
      for the desktop flex/grid layout) — an inline style always beats a
      plain class selector, so without it this rule is silently ignored
      and both panes stay in the DOM side by side, per the codebase's
      established pattern for every other inline-style override in this
-     same mobile block above. */
+     file. */
   .dashboard-split[data-mobile-view="list"] .dashboard-detail-pane { display: none !important; }
   .dashboard-split[data-mobile-view="detail"] .dashboard-list-pane { display: none !important; }
-}
-
-@media (min-width: 761px) {
-  .chat-sidebar-toggle { display: none !important; }
-  .chat-sidebar-scrim { display: none !important; }
 }
 
 /* Narrower than the general 760px breakpoint on purpose — .menu-popover's
