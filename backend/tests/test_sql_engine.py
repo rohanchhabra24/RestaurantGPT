@@ -30,6 +30,20 @@ def test_missing_tenant_filter_rejected():
         validate_sql("SELECT id FROM orders WHERE is_cancelled = true", RID)
 
 
+def test_filter_scoped_to_wrong_tenant_rejected():
+    # Distinct from the missing-filter case above: here a tenant filter IS
+    # present, it just scopes to a different restaurant than the one
+    # actually calling — the multi-tenant-isolation failure mode that
+    # would matter most (every other tenant's row leaking to this one),
+    # not just "no filter at all." The same regex that requires the
+    # caller's own id already rejects this (a filter on OTHER_RID doesn't
+    # match the pattern built from RID), but that behavior wasn't pinned
+    # down by a test naming this specific threat model until now.
+    sql = f"SELECT id FROM orders WHERE restaurant_id = '{OTHER_RID}'"
+    with pytest.raises(SQLValidationError):
+        validate_sql(sql, RID)
+
+
 def test_union_bypass_rejected():
     sql = f"SELECT id FROM orders WHERE restaurant_id = '{RID}' UNION SELECT id FROM orders WHERE restaurant_id != '{RID}'"
     with pytest.raises(SQLValidationError):

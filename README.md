@@ -354,6 +354,15 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   variable `EVAL_CI_ENABLED` = `true` (and `DEMO_RESTAURANT_ID` if the
   test project's seeded restaurant isn't the default UUID). The job will
   start running — and gating — on the next PR.
+- **The golden set checks SQL *results*, not just which lane was picked.**
+  `eval_service.score_case`'s `sql_result_ok` asserts the generated SQL's
+  actual returned rows against a known fact (`row_count`/`min_row_count`,
+  `any_value_equals`/`any_value_at_least`) — built against `seed/seed.py`'s
+  fixed `MOCKUP_CANCELLATIONS` block, the one part of the seeded data
+  that's genuinely deterministic (the rest is an unseeded random 14-day
+  spread, which only supports a floor, never an exact count). 14 cases
+  total now, covering empty results, a large (80+ row) result set, and a
+  numeric-accuracy (SUM) check, not just COUNT.
 - **Still missing, honestly:** integration tests that actually exercise
   the API routes against a database (would need a disposable test Postgres
   in CI, e.g. a service container running the migrations), and any
