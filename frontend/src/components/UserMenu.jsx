@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Settings } from "lucide-react";
+import { Moon, Settings, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../authContext.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
@@ -156,9 +156,21 @@ export default function UserMenu({ collapsed = false }) {
           one of the "useful things" a first-time user otherwise has no
           reason to go looking for. Settings/Sign out stay in the popover
           below since those are occasional actions, not a toggle worth
-          one-clicking from. Hidden while collapsed — a 64px rail has no
-          room for a labeled segmented control. */}
-      {!collapsed && (
+          one-clicking from. Collapsed rail has no room for the labeled
+          segmented control, so it gets a single icon button that just
+          flips light<->dark instead — still reachable without opening
+          Settings, which was the actual ask. */}
+      {collapsed ? (
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon app-sidebar-theme-toggle-collapsed"
+          onClick={() => setThemeState(theme === "dark" ? "light" : "dark")}
+          aria-label={theme === "dark" ? t("settings.themeLight") : t("settings.themeDark")}
+          title={theme === "dark" ? t("settings.themeLight") : t("settings.themeDark")}
+        >
+          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+      ) : (
         <div className="app-sidebar-theme-toggle seg" role="radiogroup" aria-label={t("settings.appearance")}>
           <label className="seg-opt">
             <input type="radio" name="sidebar-theme" checked={theme === "light"} onChange={() => setThemeState("light")} />

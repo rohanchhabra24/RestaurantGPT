@@ -296,6 +296,13 @@ a { color: inherit; }
   text-align: center;
 }
 
+/* Collapsed rail's stand-in for the toggle above — no room for a labeled
+   segmented control at 64px wide, so it's a single button that flips
+   light<->dark directly, centered under the avatar. */
+.app-sidebar-theme-toggle-collapsed {
+  margin: 10px auto 0;
+}
+
 .app-topbar-tagline {
   font-size: 11px;
   font-weight: 500;
