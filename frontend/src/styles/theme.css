@@ -207,6 +207,20 @@ a { color: inherit; }
 .app-sidebar-header {
   flex: none;
   padding: 0 2px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Orients a first-time user to what this panel is before they've learned
+   the icons — only worth the label while there's room to show it; the
+   collapsed rail relies on each link's title tooltip instead. */
+.app-sidebar-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-neutral-500);
 }
 
 .app-sidebar-nav {
@@ -244,14 +258,42 @@ a { color: inherit; }
 }
 .app-sidebar-profile-btn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
 
-.app-sidebar-profile-email {
+.app-sidebar-profile-text {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.app-sidebar-profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-profile-email {
+  font-size: 11.5px;
   color: var(--color-text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Quick theme switch, always visible in the expanded footer rather than
+   tucked inside the Settings dialog — see UserMenu.jsx for why. Full
+   width so its two options split the sidebar's inner width evenly
+   instead of the inline-flex .seg default sizing to its content. */
+.app-sidebar-theme-toggle {
+  width: 100%;
+  margin-top: 10px;
+}
+.app-sidebar-theme-toggle .seg-opt {
+  flex: 1;
+  text-align: center;
 }
 
 .app-topbar-tagline {

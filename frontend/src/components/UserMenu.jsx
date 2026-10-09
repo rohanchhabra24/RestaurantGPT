@@ -61,6 +61,20 @@ function initialsFor(email) {
   return local.slice(0, 2).toUpperCase();
 }
 
+// No display-name field exists anywhere in this app's data model (Supabase
+// auth here only ever gives us an email) — this derives a readable label
+// from the same local-part split initialsFor already uses, purely so the
+// sidebar's profile card has something more legible than a bare email
+// address up top, the way the reference dashboards the user is working
+// from show a name there.
+function displayNameFor(email) {
+  if (!email) return "Account";
+  const local = email.split("@")[0];
+  const parts = local.split(/[.\-_]/).filter(Boolean);
+  if (!parts.length) return local;
+  return parts.map((p) => p[0].toUpperCase() + p.slice(1)).join(" ");
+}
+
 export default function UserMenu({ collapsed = false }) {
   const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
@@ -129,8 +143,33 @@ export default function UserMenu({ collapsed = false }) {
         title={user?.email}
       >
         <span className="avatar" aria-hidden="true">{initialsFor(user?.email)}</span>
-        {!collapsed && <span className="app-sidebar-profile-email">{user?.email}</span>}
+        {!collapsed && (
+          <span className="app-sidebar-profile-text">
+            <span className="app-sidebar-profile-name">{displayNameFor(user?.email)}</span>
+            <span className="app-sidebar-profile-email">{user?.email}</span>
+          </span>
+        )}
       </button>
+      {/* Always-visible quick theme switch — the reference dashboards the
+          user is porting ideas from surface this right in the sidebar
+          footer rather than burying it inside a settings dialog, and it's
+          one of the "useful things" a first-time user otherwise has no
+          reason to go looking for. Settings/Sign out stay in the popover
+          below since those are occasional actions, not a toggle worth
+          one-clicking from. Hidden while collapsed — a 64px rail has no
+          room for a labeled segmented control. */}
+      {!collapsed && (
+        <div className="app-sidebar-theme-toggle seg" role="radiogroup" aria-label={t("settings.appearance")}>
+          <label className="seg-opt">
+            <input type="radio" name="sidebar-theme" checked={theme === "light"} onChange={() => setThemeState("light")} />
+            {t("settings.themeLight")}
+          </label>
+          <label className="seg-opt">
+            <input type="radio" name="sidebar-theme" checked={theme === "dark"} onChange={() => setThemeState("dark")} />
+            {t("settings.themeDark")}
+          </label>
+        </div>
+      )}
       <AnimatePresence>
         {open && (
           <motion.div

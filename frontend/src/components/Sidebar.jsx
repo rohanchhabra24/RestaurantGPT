@@ -41,6 +41,7 @@ export default function Sidebar({ open, onToggleNav }) {
     <div className="app-sidebar" data-open={open}>
       <div className="app-sidebar-inner">
         <div className="app-sidebar-header">
+          {open && <span className="app-sidebar-kicker">Menu</span>}
           <button
             type="button"
             className="btn btn-ghost btn-icon"
