@@ -17,6 +17,7 @@ const ChatPage = lazy(() => import("./pages/ChatPage.jsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const DataSourcesPage = lazy(() => import("./pages/DataSourcesPage.jsx"));
 const DiagnosesPage = lazy(() => import("./pages/DiagnosesPage.jsx"));
+const TracesPage = lazy(() => import("./pages/TracesPage.jsx"));
 const LandingPage = lazy(() => import("./pages/LandingPage.jsx"));
 const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage.jsx"));
@@ -77,6 +78,7 @@ function AuthedApp() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/sources" element={<DataSourcesPage />} />
                 <Route path="/diagnoses" element={<DiagnosesPage />} />
+                <Route path="/traces" element={<TracesPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Suspense>

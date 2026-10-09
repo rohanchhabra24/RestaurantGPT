@@ -34,6 +34,7 @@ export default function Sidebar({ open, onToggleNav }) {
     { to: "/", label: t("nav.chat"), icon: "chat", end: true },
     { to: "/sources", label: t("nav.sources"), icon: "db" },
     { to: "/diagnoses", label: t("nav.diagnoses"), icon: "alert" },
+    { to: "/traces", label: t("nav.traces"), icon: "route" },
   ];
 
   return (

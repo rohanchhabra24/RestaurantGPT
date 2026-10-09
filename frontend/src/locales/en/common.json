@@ -5,6 +5,7 @@
     "chat": "Chat",
     "sources": "Data Sources",
     "diagnoses": "Issues",
+    "traces": "Answer Log",
     "uploadData": "Upload data",
     "groundedSuffix": "{{percent}}% verified answers",
     "groundedTooltip": "Share of answers backed by a real order or policy you can check yourself, last 30 days",

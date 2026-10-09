@@ -174,6 +174,8 @@ export const api = {
 
   setFeedback: (traceId, rating) => request(`/traces/${traceId}/feedback`, { method: "PUT", body: JSON.stringify({ rating }) }),
   clearFeedback: (traceId) => request(`/traces/${traceId}/feedback`, { method: "DELETE" }),
+  listTraces: (limit = 50) => request(`/traces?limit=${limit}`),
+  getTrace: (traceId) => request(`/traces/${traceId}`),
 
   runAnomalyScan: () => request("/diagnostics/scan", { method: "POST" }),
   listDiagnosisCards: (status) => request(`/diagnostics/cards${status ? `?status=${status}` : ""}`),
