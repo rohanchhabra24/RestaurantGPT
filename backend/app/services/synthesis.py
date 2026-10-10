@@ -36,7 +36,15 @@ take. A step that restates a fact from the data still needs its citation
 marker; a step that's general operational advice (e.g. "consider adding a
 courier buffer in Zone 3 during rain") does NOT need one — don't invent a
 citation just to attach one to advice. Skip this section entirely for plain
-lookup questions where there's nothing to act on."""
+lookup questions where there's nothing to act on.
+
+A "Previous conversation" section below, if present, is there only so you
+understand what a short follow-up question refers to (e.g. which zone
+"what about that one" means). It is NOT a data source: never cite anything
+from it, and never copy a citation marker out of it into your new answer —
+every citation must point to this turn's own Order data / Policy text /
+Verified weather below, re-verified fresh even if you already said it a
+moment ago."""
 
 CITATION_RE = re.compile(r"\[(ORDER|POLICY|WEATHER):([^\]]+)\]")
 
@@ -123,6 +131,23 @@ def _format_chunks(chunks: list[dict]) -> str:
     return "\n---\n".join(lines)
 
 
+def _format_history(history: list[dict] | None) -> str:
+    if not history:
+        return ""
+    # Citation markers stripped before this ever reaches a prompt — this
+    # is context for understanding a follow-up's meaning, not evidence,
+    # and a leftover [ORDER:x]/[POLICY:x] token sitting in old prose is
+    # exactly the kind of thing a model might otherwise echo straight
+    # into a new answer (where it would then fail re-verification against
+    # this turn's fresh data and burn a corrective retry for no reason).
+    lines = []
+    for turn in history[-4:]:
+        role = "Operator" if turn["role"] == "user" else "Assistant"
+        content = CITATION_RE.sub("", turn["content"])[:300]
+        lines.append(f"{role}: {content}")
+    return "\n".join(lines)
+
+
 def _format_weather(weather_evidence: list[dict]) -> str:
     if not weather_evidence:
         return "(no independently-verified weather data for this investigation)"
@@ -141,6 +166,7 @@ async def synthesize(
     usage_sink: list | None = None,
     response_language: str = "english",
     weather_evidence: list[dict] | None = None,
+    history: list[dict] | None = None,
 ) -> str:
     investigation_block = (
         f"\nMulti-step investigation already performed (use these findings, don't repeat the queries):\n{investigation_steps}\n"
@@ -150,8 +176,12 @@ async def synthesize(
         f"\nVerified weather (independently checked, NOT the same as an order's own weather_flag column):\n{_format_weather(weather_evidence)}\n"
         if weather_evidence else ""
     )
+    history_block = (
+        f"\nPrevious conversation (context only — see the rule above, never cite this):\n{_format_history(history)}\n"
+        if history else ""
+    )
     prompt = f"""Question: {question}
-{investigation_block}
+{history_block}{investigation_block}
 Order data (evidence rows, from SQL):
 {_format_sql_rows(sql_rows)}
 

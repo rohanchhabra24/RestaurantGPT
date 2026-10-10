@@ -23,7 +23,8 @@ frontend/  React + Vite
    `008_response_language.sql`, `009_compensation_digest.sql`,
    `010_app_events.sql`, `011_live_feed.sql`, `012_message_feedback.sql`,
    `013_weather.sql`, `014_compensation_claims_unique.sql`,
-   `015_compensation_claims_reason.sql`, `016_request_id.sql`.
+   `015_compensation_claims_reason.sql`, `016_request_id.sql`,
+   `017_conversation_context.sql`.
 3. **Manual step (can't be done from a migration):** in the dashboard, go to
    Authentication → Hooks → "Customize Access Token (JWT) Claims" and select
    `public.custom_access_token_hook` as the hook function. Without this,

@@ -31,6 +31,11 @@ class PipelineResult:
         self.investigation_steps: list[str] = []
         self.weather_evidence: list[dict] = []
         self.usage: list[dict] = []  # one {"model","input_tokens","output_tokens"} per Claude call this turn
+        # Slots resolved THIS turn, merged with whatever the conversation
+        # already knew coming in — the caller (conversations.py) persists
+        # this back onto conversations.last_slots so the next message in
+        # the same thread can inherit it. See intent_router.SLOT_KEYS.
+        self.slots: dict = {}
 
     @property
     def total_input_tokens(self) -> int:
@@ -127,16 +132,29 @@ _LLM_UNAVAILABLE_MESSAGES = {
 }
 
 
-async def run_pipeline(question: str, restaurant_id: str, response_language: str = "english") -> PipelineResult:
+async def run_pipeline(
+    question: str,
+    restaurant_id: str,
+    response_language: str = "english",
+    history: list[dict] | None = None,
+    known_slots: dict | None = None,
+    previous_route: str | None = None,
+) -> PipelineResult:
     """Thin wrapper around _run_pipeline: every stage below this point
     (routing, SQL generation, synthesis, the investigator, grounding's own
     corrective retry) makes at least one LLM call, and a timeout/rate-limit/
     outage from any of them would otherwise propagate as an unhandled
     exception — a raw 500 on exactly the "zero-hallucination, always give
     the operator something honest" pipeline this app is built around.
-    Caught here, once, rather than at every individual call site."""
+    Caught here, once, rather than at every individual call site.
+
+    history/known_slots/previous_route (conversations.py fetches these from
+    the conversation row and recent messages before calling this) are what
+    let a follow-up question work at all — see intent_router.py's module
+    docstring for why each message used to be answered in total isolation.
+    """
     try:
-        return await _run_pipeline(question, restaurant_id, response_language)
+        return await _run_pipeline(question, restaurant_id, response_language, history, known_slots, previous_route)
     except LLMUnavailableError:
         result = PipelineResult()
         result.answer_text = _LLM_UNAVAILABLE_MESSAGES.get(response_language, _LLM_UNAVAILABLE_MESSAGES["english"])
@@ -146,20 +164,46 @@ async def run_pipeline(question: str, restaurant_id: str, response_language: str
         return result
 
 
-async def _run_pipeline(question: str, restaurant_id: str, response_language: str = "english") -> PipelineResult:
+async def _run_pipeline(
+    question: str,
+    restaurant_id: str,
+    response_language: str = "english",
+    history: list[dict] | None = None,
+    known_slots: dict | None = None,
+    previous_route: str | None = None,
+) -> PipelineResult:
     result = PipelineResult()
 
     t0 = time.perf_counter()
-    routing = await intent_router.classify_intent(question, usage_sink=result.usage)
+    routing = await intent_router.classify_intent(question, usage_sink=result.usage, history=history, known_slots=known_slots)
     _timed("routing", t0, result)
     result.route_taken = routing["route"]
-    slots = routing.get("slots", {})
+    # Merge: a slot the router actually returned this turn overrides;
+    # anything it omitted (because the question didn't mention it) falls
+    # back to what the conversation already knew. The router is instructed
+    # never to echo an inherited value back itself (see intent_router.py's
+    # SYSTEM prompt) specifically so this merge — not the model's own
+    # judgment — is what decides inheritance, which keeps it deterministic.
+    slots = {
+        **(known_slots or {}),
+        **{k: v for k, v in routing.get("slots", {}).items() if k in intent_router.SLOT_KEYS and v},
+    }
+    result.slots = slots
 
     if result.route_taken == "CLARIFY":
-        result.answer_text = _CLARIFY_MESSAGES.get(response_language, _CLARIFY_MESSAGES["english"])
-        result.grounding_verdict = "no_claims"
-        result.citation_coverage = 1.0
-        return result
+        # A genuinely ambiguous opening question stays CLARIFY. But a
+        # follow-up that's only ambiguous in isolation — the conversation
+        # already settled on a route and at least one slot carried
+        # forward — shouldn't dead-end into the same generic "I need more
+        # detail" message a second time; answer it the way the thread was
+        # already going instead of making the operator repeat themselves.
+        if previous_route and previous_route not in ("CLARIFY", "GREETING") and slots:
+            result.route_taken = previous_route
+        else:
+            result.answer_text = _CLARIFY_MESSAGES.get(response_language, _CLARIFY_MESSAGES["english"])
+            result.grounding_verdict = "no_claims"
+            result.citation_coverage = 1.0
+            return result
 
     if result.route_taken == "GREETING":
         from app.db import get_pool
@@ -202,7 +246,7 @@ async def _run_pipeline(question: str, restaurant_id: str, response_language: st
     raw_answer = await synthesis.synthesize(
         question, result.sql_rows, result.chunks, investigation_steps_text,
         usage_sink=result.usage, response_language=response_language,
-        weather_evidence=result.weather_evidence,
+        weather_evidence=result.weather_evidence, history=history,
     )
     _timed("synthesis", t3, result)
 

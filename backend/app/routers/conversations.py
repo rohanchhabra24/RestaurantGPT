@@ -57,9 +57,14 @@ async def _owned_conversation(conn, conversation_id: uuid.UUID, restaurant_id: u
     """Every conversation-scoped route must check this — a conversation_id
     from the URL is client-supplied, so without this check any
     authenticated user could read or post into another restaurant's
-    conversation just by guessing/enumerating an id."""
+    conversation just by guessing/enumerating an id.
+
+    last_slots/last_route are carried here too (not just title) — they're
+    what let post_message resolve a follow-up question against this same
+    conversation's prior context; see migrations/017_conversation_context.sql.
+    """
     conv = await conn.fetchrow(
-        "select id, title from conversations where id = $1 and restaurant_id = $2",
+        "select id, title, last_slots, last_route from conversations where id = $1 and restaurant_id = $2",
         conversation_id, restaurant_id,
     )
     if conv is None:
@@ -133,6 +138,20 @@ async def post_message(
     async with pool.acquire() as conn:
         conv = await _owned_conversation(conn, conv_uuid, rid)
 
+        # Recent turns for this conversation, fetched BEFORE inserting the
+        # new user message below (so it's genuinely prior context, not a
+        # duplicate of the question being asked now) — this plus last_slots
+        # is what lets a follow-up like "what about Zone 4?" resolve
+        # against the previous question instead of being answered in
+        # isolation. See pipeline.py/intent_router.py for how it's used.
+        history_rows = await conn.fetch(
+            "select role, content from messages where conversation_id = $1 order by created_at desc limit 6",
+            conv_uuid,
+        )
+        history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows)]
+        known_slots = json.loads(conv["last_slots"]) if conv["last_slots"] else {}
+        previous_route = conv["last_route"]
+
         await conn.execute(
             "insert into messages (conversation_id, role, content) values ($1, 'user', $2)",
             conv_uuid,
@@ -155,6 +174,11 @@ async def post_message(
     t0 = time.perf_counter()
     cached = await semantic_cache.lookup(body.content, restaurant_id, response_language)
     cache_lookup_ms = int((time.perf_counter() - t0) * 1000)
+    # A cache hit skips the router entirely (that's the whole point of the
+    # cache — no LLM call), so there are no freshly-resolved slots to carry
+    # forward this turn. conversations.last_slots/last_route are left as
+    # they were; the next non-cached turn still has last real context to
+    # inherit from, it just won't reflect anything asked via a cache hit.
 
     if cached:
         citations = [Citation(**c) for c in cached["citations"]]
@@ -195,7 +219,10 @@ async def post_message(
             cache_similarity=cached["similarity"],
         )
 
-    result = await run_pipeline(body.content, restaurant_id, response_language)
+    result = await run_pipeline(
+        body.content, restaurant_id, response_language,
+        history=history, known_slots=known_slots, previous_route=previous_route,
+    )
     await semantic_cache.store(body.content, restaurant_id, result, response_language)
 
     citations_json = json.dumps([c.model_dump() for c in result.citations])
@@ -233,6 +260,16 @@ async def post_message(
             result.estimated_cost_usd,
             getattr(request.state, "request_id", None),
         )
+        # Carries this turn's resolved context into the next message in
+        # this same conversation. Skipped for CLARIFY/GREETING — neither
+        # resolves anything worth remembering, and overwriting good prior
+        # context with a stray "hi" or a genuinely unanswerable question
+        # would break the very follow-up chain this is here to support.
+        if result.route_taken not in ("CLARIFY", "GREETING"):
+            await conn.execute(
+                "update conversations set last_slots = $1, last_route = $2 where id = $3",
+                json.dumps(result.slots), result.route_taken, conv_uuid,
+            )
 
     return MessageOut(
         id=str(msg_row["id"]),

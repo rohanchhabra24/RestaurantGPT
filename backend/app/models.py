@@ -2,7 +2,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-Route = Literal["SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY"]
+Route = Literal["SQL", "RETRIEVAL", "HYBRID", "DIAGNOSTIC", "CLARIFY", "GREETING"]
 GroundingVerdict = Literal["grounded", "ungrounded", "partial", "no_claims"]
 
 # A chat question has no legitimate reason to be this long — bounding it
