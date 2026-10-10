@@ -89,6 +89,31 @@ export default function ChatPage() {
     api.listConversations().then(setConversations).catch(() => {});
   }, []);
 
+  // The 4 example prompts on the empty-state screen used to always be the
+  // same generic strings, regardless of what's actually happening at this
+  // restaurant. diagnosis_cards (written by the Diagnoses page's anomaly
+  // scan — GET, no LLM call here) is real, already-detected trouble; when
+  // it exists, it displaces the front of the static list below so the
+  // first thing a first-time user sees is something true about their own
+  // data, not a placeholder. Silently falls back to all-static on any
+  // failure (including "no scan has ever been run yet", which 404s into
+  // an empty array, not an error) — this is a nice-to-have, never a
+  // blocker for the empty state rendering at all.
+  const [dynamicPrompts, setDynamicPrompts] = useState([]);
+  useEffect(() => {
+    api.listDiagnosisCards("open").then((cards) => {
+      setDynamicPrompts(
+        cards.slice(0, 2).map((c) => ({
+          key: c.id,
+          icon: "alert",
+          kicker: "Happening today",
+          title: `Why did delivery time spike in ${c.zone}?`,
+          body: c.narrative ? c.narrative.slice(0, 120) + (c.narrative.length > 120 ? "…" : "") : "A real issue our anomaly scan already flagged in your data.",
+        }))
+      );
+    }).catch(() => {});
+  }, []);
+
   // Reload the previously-open conversation's messages on mount — they
   // don't persist in storage themselves (just refetched), only which
   // conversation was open does.
@@ -348,8 +373,11 @@ export default function ChatPage() {
               <p className="dim" style={{ margin: 0, fontSize: 14 }}>{t("chat.heroSubtitle")}</p>
             </div>
             <div className="example-prompts-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 300px))", gap: 14 }}>
-              {EXAMPLE_PROMPTS.map((p) => (
-                <div key={p.title} className="card elev-sm" style={{ cursor: "pointer" }} onClick={() => send(p.title, "starter_prompt")}>
+              {/* Real, already-detected issues (if any) displace the front
+                  of the static list rather than appending — keeps the grid
+                  at 4 cards instead of growing it. */}
+              {[...dynamicPrompts, ...EXAMPLE_PROMPTS.slice(dynamicPrompts.length)].slice(0, 4).map((p) => (
+                <div key={p.key || p.title} className="card elev-sm" style={{ cursor: "pointer" }} onClick={() => send(p.title, p.key ? "dynamic_starter_prompt" : "starter_prompt")}>
                   <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name={p.icon} size={12} />{p.kicker}</div>
                   <div className="card-title">{p.title}</div>
                   <p className="card-body">{p.body}</p>
