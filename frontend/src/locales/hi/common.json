@@ -48,6 +48,7 @@
     "compFileClaims_one": "{{count}} दावा दर्ज करें",
     "compFileClaims_other": "{{count}} दावे दर्ज करें",
     "compFiled": "दर्ज हो गया",
+    "compViewInDashboard": "डैशबोर्ड में देखें",
     "inputPlaceholder": "ऑर्डर, कैंसिलेशन, देरी के बारे में पूछें…",
     "pressEnter": "भेजने के लिए {{key}} दबाएं",
     "sendingIndicator": "आपके ऑर्डर और पॉलिसी जांची जा रही हैं…",

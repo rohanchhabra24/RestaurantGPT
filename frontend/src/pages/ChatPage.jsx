@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon.jsx";
@@ -43,6 +44,7 @@ function writeStorage(key, value) {
 
 export default function ChatPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveIdState] = useState(() => readStorage(ACTIVE_ID_KEY) || null);
   const [messages, setMessages] = useState([]);
@@ -263,8 +265,14 @@ export default function ChatPage() {
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {activeId && (
-          <AnimatePresence>
+        {/* Was gated on activeId, which is still null right after the
+            empty-state "Check for recoverable compensation" button below
+            is clicked (that button only exists when there's no active
+            conversation yet) — the sweep ran and drafted real claims
+            server-side, but this result banner could never render to show
+            it. Dropped the gate so the result always shows regardless of
+            whether a conversation is open. */}
+        <AnimatePresence>
             {compBusy || compensation || compError ? (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -288,24 +296,34 @@ export default function ChatPage() {
                     )}
                   </span>
                   {!compBusy && recoverableCount > 0 && (
-                    compensation.filed ? (
-                      <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />{t("chat.compFiled")}</span>
-                    ) : (
-                      <>
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => send("Which of yesterday's cancellations are eligible for compensation, and why?")}>
-                          {t("chat.compExplain")}
-                        </button>
-                        <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={fileAllClaims} disabled={filingClaims}>
-                          {filingClaims ? t("chat.compFiling") : t("chat.compFileClaims", { count: recoverableCount })}
-                        </button>
-                      </>
-                    )
+                    <>
+                      {compensation.filed ? (
+                        <span className="tag tag-accent" style={{ gap: 5 }}><Icon name="check" size={10} />{t("chat.compFiled")}</span>
+                      ) : (
+                        <>
+                          <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => send("Which of yesterday's cancellations are eligible for compensation, and why?")}>
+                            {t("chat.compExplain")}
+                          </button>
+                          <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={fileAllClaims} disabled={filingClaims}>
+                            {filingClaims ? t("chat.compFiling") : t("chat.compFileClaims", { count: recoverableCount })}
+                          </button>
+                        </>
+                      )}
+                      {/* Durable path to the actual claim records — the
+                          banner above disappears once you navigate away,
+                          and that was the whole complaint: nowhere to go
+                          find what a sweep drafted after the fact. Jumps
+                          to the Dashboard's "Owed compensation" tab, same
+                          place the Topbar's compensation badge lands. */}
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => navigate("/dashboard?reviewDigest=1")}>
+                        {t("chat.compViewInDashboard")}
+                      </button>
+                    </>
                   )}
                 </div>
               </motion.div>
             ) : null}
-          </AnimatePresence>
-        )}
+        </AnimatePresence>
 
         {messages.length === 0 ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 28, padding: "40px clamp(16px, 6vw, 40px)", minWidth: 0 }}>

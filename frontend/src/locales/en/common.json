@@ -48,6 +48,7 @@
     "compFileClaims_one": "File {{count}} claim",
     "compFileClaims_other": "File {{count}} claims",
     "compFiled": "Filed",
+    "compViewInDashboard": "View in Dashboard",
     "inputPlaceholder": "Ask about orders, cancellations, delays…",
     "pressEnter": "Press {{key}} to send",
     "sendingIndicator": "Checking your orders and policies…",
