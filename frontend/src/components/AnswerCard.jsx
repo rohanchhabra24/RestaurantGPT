@@ -77,7 +77,7 @@ function FeedbackButtons({ feedback, onFeedback }) {
   );
 }
 
-export default function AnswerCard({ message, onCiteClick, onFeedback }) {
+export default function AnswerCard({ message, onCiteClick, onFeedback, onSuggestionClick }) {
   const source = ROUTE_SOURCE[message.route_taken];
   const uniqueCitations = Array.from(new Map(message.citations.map((c) => [`${c.type}:${c.ref_id}`, c])).values());
   const abstained = message.grounding_verdict === "ungrounded";
@@ -217,6 +217,25 @@ export default function AnswerCard({ message, onCiteClick, onFeedback }) {
             </span>
           ))}
         </div>
+      )}
+
+      {/* Clickable next-question suggestions — only present on the most
+          recent answer (ChatPage only passes onSuggestionClick for that
+          one), so these never show up stale on an older message once the
+          conversation has moved past it. */}
+      {onSuggestionClick && message.suggested_followups?.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16, duration: 0.2 }}
+          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+        >
+          {message.suggested_followups.map((s) => (
+            <button key={s} type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={() => onSuggestionClick(s)}>
+              {s}
+            </button>
+          ))}
+        </motion.div>
       )}
     </motion.div>
   );

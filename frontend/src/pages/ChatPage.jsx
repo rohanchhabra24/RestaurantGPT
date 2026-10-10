@@ -364,13 +364,24 @@ export default function ChatPage() {
           </div>
         ) : (
           <div style={{ flex: 1, overflow: "auto", padding: "28px clamp(16px, 6vw, 40px)", display: "flex", flexDirection: "column", gap: 20 }}>
-            {messages.map((m) =>
+            {messages.map((m, i) =>
               m.role === "user" ? (
                 <div key={m.id} style={{ alignSelf: "flex-end", maxWidth: 640, background: "var(--color-surface)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 14 }}>
                   {m.content}
                 </div>
               ) : (
-                <AnswerCard key={m.id} message={m} onCiteClick={setDrawerCitation} onFeedback={(rating) => handleFeedback(m, rating)} />
+                <AnswerCard
+                  key={m.id}
+                  message={m}
+                  onCiteClick={setDrawerCitation}
+                  onFeedback={(rating) => handleFeedback(m, rating)}
+                  // Only the most recent answer gets follow-up chips — a
+                  // stale suggestion attached to a message from several
+                  // turns back no longer reflects where the conversation
+                  // actually is. Hidden while a new message is in flight
+                  // so a chip can't be tapped twice.
+                  onSuggestionClick={i === messages.length - 1 && !sending ? (s) => send(s, "suggested_followup") : undefined}
+                />
               )
             )}
             {sending && (

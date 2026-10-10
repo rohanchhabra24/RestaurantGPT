@@ -9,7 +9,7 @@ from app.auth import AuthContext, require_tenant, require_tenant_context
 from app.config import settings
 from app.db import get_pool
 from app.models import Citation, ConversationOut, MessageIn, MessageOut
-from app.services import rate_limit, semantic_cache
+from app.services import followups, rate_limit, semantic_cache
 from app.services.ip_rate_limit import limiter
 from app.services.pipeline import run_pipeline
 
@@ -83,10 +83,12 @@ async def get_messages(conversation_id: str, restaurant_id: str = Depends(requir
     needs trace_id to know what to attach to on reload anyway — so both the
     badges and feedback state now survive a reload together.
 
-    data_table and cache_similarity are the two MessageOut fields that
-    genuinely can't be recovered this way: only sql_result_row_count (not
-    the actual rows) and no similarity score at all are persisted in
-    query_traces, so those stay at their defaults on reload.
+    data_table, cache_similarity, and suggested_followups are the
+    MessageOut fields that genuinely can't be recovered this way: only
+    sql_result_row_count (not the actual rows) and no similarity score at
+    all are persisted in query_traces, and follow-up suggestions are
+    computed fresh at answer time, not stored — all three stay at their
+    defaults on reload.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -217,6 +219,11 @@ async def post_message(
             data_table=cached["data_table"],
             from_cache=True,
             cache_similarity=cached["similarity"],
+            # No fresh slots on a cache hit (the router didn't run this
+            # turn — that's the whole point of the cache), so this only
+            # gets the route/question-based suggestions, not the
+            # zone/date-range-aware ones.
+            suggested_followups=followups.suggest(cached["route_taken"], body.content),
         )
 
     result = await run_pipeline(
@@ -284,4 +291,8 @@ async def post_message(
         trace_id=str(trace_row["id"]),
         data_table=jsonable_encoder(result.sql_rows),
         investigation_steps=result.investigation_steps,
+        # Nothing to suggest on an abstained answer — the honest next move
+        # is narrowing the question, which the abstention message already
+        # says; a cheerful follow-up chip right under it would read oddly.
+        suggested_followups=[] if result.abstained else followups.suggest(result.route_taken, body.content, result.slots),
     )

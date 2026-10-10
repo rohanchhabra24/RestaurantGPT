@@ -39,6 +39,7 @@ class MessageOut(BaseModel):
     from_cache: bool = False
     cache_similarity: float | None = None
     feedback: Literal["up", "down"] | None = None
+    suggested_followups: list[str] = []
 
 
 class ConversationOut(BaseModel):
