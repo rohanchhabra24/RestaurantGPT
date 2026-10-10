@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import CountUp from "../components/CountUp.jsx";
 import Icon from "../components/Icon.jsx";
@@ -213,15 +214,29 @@ function statusTag(order) {
   return <span className="tag tag-neutral">{order.status}</span>;
 }
 
-function OrderRow({ order, selected, onClick }) {
+// justDrafted is true for the one render right after a sweep drafts a
+// claim for this exact order — without it, the only visible change at
+// that moment is the status tag quietly switching from the bright
+// "Compensation owed" accent tag to a much quieter outlined "Claim
+// drafted" one (see statusTag below). That's a real drop in visual
+// weight landing at the exact instant something important just happened,
+// which reads as "the order vanished" even though it's still right there
+// — the eye just has nothing left pulling it to this row. The brief
+// background flash below exists purely to point at what changed, for the
+// one moment that matters, then gets out of the way.
+function OrderRow({ order, selected, onClick, justDrafted }) {
   return (
-    <div
+    <motion.div
       className="row-hover"
       onClick={onClick}
+      initial={justDrafted ? { backgroundColor: "var(--color-accent-800)" } : false}
+      animate={{ backgroundColor: selected ? "var(--color-accent-900)" : "transparent" }}
+      // Only the just-drafted flash fades gradually — an ordinary click to
+      // select a different row should feel instant, not animate in slowly.
+      transition={{ duration: justDrafted ? 1.8 : 0, ease: "easeOut" }}
       style={{
         display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
         borderBottom: "1px solid var(--color-divider)", cursor: "pointer",
-        background: selected ? "var(--color-accent-900)" : "transparent",
       }}
     >
       <span
@@ -246,7 +261,7 @@ function OrderRow({ order, selected, onClick }) {
       <div className="mono" style={{ fontSize: 13, width: 64, textAlign: "right", flex: "none" }}>
         {order.total_amount != null ? `₹${order.total_amount.toFixed(0)}` : "—"}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -563,6 +578,12 @@ export default function DashboardPage() {
   }
 
   const selectedOrder = (orders || []).find((o) => o.id === selectedId) || null;
+  // Which orders the most recent sweep just drafted a claim for — see
+  // OrderRow's justDrafted comment for why this needs its own visual cue.
+  // sweepResult.drafted_claims[].order_id is the aggregator_order_id
+  // string (compensation_sweep.py), matching order.aggregator_order_id
+  // here, not this app's internal uuid.
+  const justDraftedOrderIds = new Set((sweepResult?.drafted_claims || []).map((c) => c.order_id));
   const revenuePoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.revenue })) ?? [];
   const orderPoints = trends?.points.map((p) => ({ bucket: p.bucket, value: p.orders })) ?? [];
   // Derived client-side from the same totals the hero tiles already use —
@@ -730,13 +751,18 @@ export default function DashboardPage() {
                 <div className="tag tag-accent" style={{ marginBottom: 8, display: "flex", gap: 5 }}>
                   <Icon name="check" size={10} />
                   {sweepResult.drafted_claims.length > 0
-                    ? `Drafted ${sweepResult.drafted_claims.length} claim${sweepResult.drafted_claims.length === 1 ? "" : "s"}, ₹${sweepResult.total_recoverable.toFixed(0)} total — listed below`
+                    ? `Drafted ${sweepResult.drafted_claims.length} claim${sweepResult.drafted_claims.length === 1 ? "" : "s"}, ₹${sweepResult.total_recoverable.toFixed(0)} total — highlighted below`
                     : "Checked — nothing new to claim right now"}
                 </div>
               )}
               <button type="button" className="btn btn-secondary btn-block" onClick={runSweep} disabled={sweeping}>
                 {sweeping ? "Checking your orders…" : "Check for recoverable compensation"}
               </button>
+              <div className="dim" style={{ fontSize: 11, marginTop: 6 }}>
+                Looks at every cancelled order from the last 2 days and compares it against your
+                policy — nothing is submitted anywhere, it just writes down what you're owed and
+                why, for you to review.
+              </div>
             </div>
           )}
           <div style={{ flex: 1, overflow: "auto" }}>
@@ -749,7 +775,13 @@ export default function DashboardPage() {
               </div>
             )}
             {orders && filteredOrders.map((o) => (
-              <OrderRow key={o.id} order={o} selected={o.id === selectedId} onClick={() => { setSelectedId(o.id); setMobileView("detail"); }} />
+              <OrderRow
+                key={o.id}
+                order={o}
+                selected={o.id === selectedId}
+                onClick={() => { setSelectedId(o.id); setMobileView("detail"); }}
+                justDrafted={justDraftedOrderIds.has(o.aggregator_order_id)}
+              />
             ))}
           </div>
         </div>
