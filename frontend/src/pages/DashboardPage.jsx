@@ -712,11 +712,40 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+          {/* The only way to trigger a compensation check used to be
+              drilling into one specific eligible order's detail pane first
+              — a sweep that actually checks every eligible order from the
+              last 2 days, buried behind picking one at random. Operators
+              who wanted to know "is anything owed to me" had no reason to
+              think that's where the answer lived. This puts the same
+              trigger (runSweep) and its result right where someone
+              actually looking for owed compensation would click first —
+              the tab itself — and keeps the result visible regardless of
+              which order (if any) is selected, instead of disappearing
+              the moment you navigate off one order. */}
+          {tab === "eligible" && (
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-divider)", flex: "none" }}>
+              {sweepError && <div className="tag tag-danger" style={{ marginBottom: 8, display: "flex" }}>{sweepError}</div>}
+              {sweepResult && !sweepError && (
+                <div className="tag tag-accent" style={{ marginBottom: 8, display: "flex", gap: 5 }}>
+                  <Icon name="check" size={10} />
+                  {sweepResult.drafted_claims.length > 0
+                    ? `Drafted ${sweepResult.drafted_claims.length} claim${sweepResult.drafted_claims.length === 1 ? "" : "s"}, ₹${sweepResult.total_recoverable.toFixed(0)} total — listed below`
+                    : "Checked — nothing new to claim right now"}
+                </div>
+              )}
+              <button type="button" className="btn btn-secondary btn-block" onClick={runSweep} disabled={sweeping}>
+                {sweeping ? "Checking your orders…" : "Check for recoverable compensation"}
+              </button>
+            </div>
+          )}
           <div style={{ flex: 1, overflow: "auto" }}>
             {orders === null && <div className="dim" style={{ padding: 16, fontSize: 13 }}>Loading…</div>}
             {orders && filteredOrders.length === 0 && (
               <div className="dim" style={{ padding: 16, fontSize: 13 }}>
-                {orders.length === 0 ? "No orders in this view yet." : "No orders match these filters."}
+                {orders.length > 0 ? "No orders match these filters."
+                  : tab === "eligible" ? "Nothing owed right now — run a check above to look for newly eligible orders."
+                  : "No orders in this view yet."}
               </div>
             )}
             {orders && filteredOrders.map((o) => (
