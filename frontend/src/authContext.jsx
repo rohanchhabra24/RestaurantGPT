@@ -58,6 +58,16 @@ export function AuthProvider({ children }) {
     user: session?.user ?? null,
     signUp: (email, password) => supabase.auth.signUp({ email, password }),
     signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    // Navigates the whole page away to Google's consent screen and back —
+    // there's no local session to react to here; Supabase's client picks
+    // the session up automatically from the redirect URL on return
+    // (detectSessionInUrl, on by default), which fires the same
+    // onAuthStateChange SIGNED_IN handler above as any other sign-in.
+    // Google must be enabled as a provider in the Supabase dashboard with
+    // real Google Cloud OAuth credentials first — see README's auth
+    // section for the exact manual steps; until then this call fails with
+    // "Unsupported provider" rather than silently doing nothing.
+    signInWithGoogle: () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } }),
     signOut: () => supabase.auth.signOut(),
     // Onboarding mints the restaurant_id claim via a Postgres hook that only
     // runs at token-issuance time — refresh so the *next* request carries it,
