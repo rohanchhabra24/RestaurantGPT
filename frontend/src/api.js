@@ -1,4 +1,10 @@
-const BASE = "/api";
+// In dev, Vite's proxy (vite.config.js) forwards a relative "/api" to the
+// local backend. On a split deployment (static frontend + separately
+// hosted backend, e.g. two Render services) there's no such proxy, so the
+// frontend needs the backend's real origin instead — set at build time via
+// VITE_API_BASE_URL. Falls back to the relative path so nothing changes
+// for dev or a same-origin deployment that doesn't set it.
+export const BASE = `${import.meta.env.VITE_API_BASE_URL || ""}/api`;
 
 // Set by authContext.jsx whenever the Supabase session changes. Kept as a
 // module-level value rather than threaded through every api.js call site —

@@ -1,0 +1,112 @@
+# Render Blueprint — deploys the backend (FastAPI) and frontend (static
+# React build) as two separate services from this one repo. Connect this
+# repo at https://dashboard.render.com/select-repo?type=blueprint and Render
+# reads this file automatically.
+#
+# Two things Render can't fill in for you, because of the classic
+# blueprint chicken-and-egg problem (each service needs the other's URL,
+# but neither URL exists until Render creates it):
+#   1. After the first deploy, open restaurantgpt-backend in the Render
+#      dashboard, copy its URL, and paste it into restaurantgpt-frontend's
+#      VITE_API_BASE_URL env var (no trailing slash).
+#   2. Copy restaurantgpt-frontend's URL and paste it into
+#      restaurantgpt-backend's CORS_ALLOWED_ORIGINS env var (no trailing
+#      slash; comma-separate if you add a custom domain later).
+#   3. Do the same for PUBLIC_API_BASE_URL on the backend (its own URL —
+#      used only as the live-feed-sync default target, see config.py).
+# Then trigger a manual redeploy of each service so the new values take
+# effect. See README.md's Deployment section for the full walkthrough,
+# including the secrets every "sync: false" value below needs.
+
+envVarGroups:
+  - name: restaurantgpt-backend-secrets
+    envVars:
+      # Fill these in once in the Render dashboard (Environment Groups ->
+      # restaurantgpt-backend-secrets) — `sync: false` means Render creates
+      # the key but leaves the value for you to paste in, since none of
+      # these are safe to commit.
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CRON_SYNC_SECRET
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: ALERT_EMAIL_TO
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+
+services:
+  - type: web
+    name: restaurantgpt-backend
+    runtime: python
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health/ready
+    envVars:
+      - fromGroup: restaurantgpt-backend-secrets
+      - key: PYTHON_VERSION
+        value: 3.11.17
+      # Render terminates TLS at its own edge and forwards plain HTTP to
+      # this process, so FORCE_HTTPS must stay false here (see main.py's
+      # comment) — Render already redirects http -> https for you.
+      - key: FORCE_HTTPS
+        value: "false"
+      - key: ALERT_EMAIL_FROM
+        value: restaurantgpt@gmail.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      # Set these two after the first deploy — see the note at the top of
+      # this file for why they can't be filled in automatically.
+      - key: PUBLIC_API_BASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: restaurantgpt-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Set after the first deploy — see the note at the top of this file.
+      - key: VITE_API_BASE_URL
+        sync: false
+      # Supabase and EmailJS are both client-only integrations with no
+      # server-side secret involved (the Supabase anon key and the EmailJS
+      # public key are meant to be exposed in frontend code) — still kept
+      # as sync: false so each is set once per environment instead of
+      # committed, and so a staging deployment can point at a different
+      # Supabase project without a code change.
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_EMAILJS_SERVICE_ID
+        sync: false
+      - key: VITE_EMAILJS_TEMPLATE_ID
+        sync: false
+      - key: VITE_EMAILJS_PUBLIC_KEY
+        sync: false
+    routes:
+      # SPA fallback — this is a client-side-routed React app (react-router),
+      # so any path Render's static host doesn't otherwise recognize as a
+      # built asset needs to resolve to index.html and let the router take
+      # over, the same role frontend/public/_redirects plays on Netlify and
+      # frontend/vercel.json plays on Vercel.
+      - type: rewrite
+        source: /*
+        destination: /index.html

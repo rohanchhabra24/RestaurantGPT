@@ -345,6 +345,154 @@ that prefix is a hard line: only ever put genuinely public values behind it.
   no `dangerouslySetInnerHTML` in the frontend (React escapes rendered text
   by default, so LLM output and uploaded document text can't inject markup).
 
+## Deploy to Render
+
+`render.yaml` at the repo root is a [Render Blueprint](https://render.com/docs/blueprint-spec)
+that deploys this app as two services: `restaurantgpt-backend` (the FastAPI
+app) and `restaurantgpt-frontend` (the static React build). Render reads
+this file automatically when you connect the repo.
+
+### 1. One-time accounts you'll need
+
+- A [Render](https://render.com) account, with this GitHub repo accessible
+  to it.
+- The Supabase project from step 1 above (its DB connection string, project
+  URL, and service-role key).
+- A [Groq](https://console.groq.com) API key (`GROQ_API_KEY`).
+
+### 2. Deploy the blueprint
+
+1. Render dashboard → **New → Blueprint** → select this repo. Render
+   detects `render.yaml` and shows both services.
+2. Before the first deploy, it'll prompt for every `sync: false` value in
+   the `restaurantgpt-backend-secrets` group: `SUPABASE_DB_URL`,
+   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `GROQ_API_KEY` (all from
+   Supabase dashboard → Settings → API / Database), plus `CRON_SYNC_SECRET`
+   (any random string you make up — it's just a shared secret between this
+   backend and the GitHub Actions cron workflows below).
+   `SMTP_USERNAME`/`SMTP_PASSWORD`/`ALERT_EMAIL_TO`/`SLACK_WEBHOOK_URL` are
+   optional — see **Gmail alert emails** below; leave them blank for now if
+   you're not setting that up yet.
+3. Click **Apply**. Both services build and deploy — the backend usually
+   takes a few minutes (installs `sentence-transformers`/PyTorch), the
+   frontend is fast.
+
+### 3. Wire the two services together (one-time, after the first deploy)
+
+The frontend and backend don't know each other's URLs until Render
+assigns them, so this one step can't be baked into the blueprint. Once
+both services show as live:
+
+1. Copy the backend's URL (`restaurantgpt-backend` service page, top of the
+   page — looks like `https://restaurantgpt-backend-xxxx.onrender.com`).
+2. On `restaurantgpt-backend` → **Environment**, set
+   `PUBLIC_API_BASE_URL` to that same URL, and `CORS_ALLOWED_ORIGINS` to
+   the frontend's URL (next step — you can do this after step 3 too).
+3. Copy the frontend's URL (`restaurantgpt-frontend` service page).
+4. On `restaurantgpt-frontend` → **Environment**, set `VITE_API_BASE_URL`
+   to the backend's URL from step 1 (no trailing slash).
+5. On `restaurantgpt-backend` → **Environment**, set `CORS_ALLOWED_ORIGINS`
+   to the frontend's URL from step 3 (no trailing slash).
+6. Also set `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` on the frontend
+   (Supabase dashboard → Settings → API — the anon/public key, safe to
+   expose client-side).
+7. Each env var change triggers Render to redeploy that service
+   automatically — wait for both to finish, then open the frontend URL.
+
+### 4. Supabase dashboard config for the deployed domain
+
+With the frontend's real URL in hand:
+
+- **Authentication → URL Configuration** — set **Site URL** to the
+  frontend's URL, and add it (plus `<frontend-url>/reset-password`) to
+  **Redirect URLs**. Without this, password-reset links and Google
+  sign-in both silently fall back to whatever Site URL was set before
+  (likely `localhost`) instead of landing back on your deployed app.
+- Everything in **Production hardening checklist** above that's listed as
+  a "manual dashboard step" — confirm-email, password policy, network
+  restrictions, rate limits — is worth doing before any real signups.
+
+### 5. Google sign-in
+
+`LoginPage.jsx` already has a "Continue with Google" button
+(`signInWithGoogle` in `authContext.jsx`) — it fails with "Unsupported
+provider" until you enable Google in Supabase:
+
+1. [Google Cloud Console](https://console.cloud.google.com) → create or
+   pick a project → **APIs & Services → OAuth consent screen** → External
+   → fill in app name ("RestaurantGPT"), support email, and developer
+   contact (`restaurantgpt@gmail.com` works for both).
+2. **APIs & Services → Credentials → Create Credentials → OAuth client
+   ID** → Application type **Web application**.
+   - **Authorized JavaScript origins:** the frontend's Render URL (add
+     `http://localhost:5173` too if you want Google sign-in to work in
+     local dev).
+   - **Authorized redirect URIs:** `https://<your-project-ref>.supabase.co/auth/v1/callback`
+     (Supabase project URL + this fixed path — found on the Supabase
+     dashboard's API settings page).
+3. Save, copy the **Client ID** and **Client Secret**.
+4. Supabase dashboard → **Authentication → Providers → Google** → enable
+   → paste in the Client ID and Client Secret → Save.
+
+No backend changes or redeploy needed for this part — `auth.py` verifies
+any Supabase-issued token regardless of how the user signed in.
+
+### 6. Gmail alert emails (restaurantgpt@gmail.com)
+
+This wires the Gmail account into the push-alerting system already
+described under **Push alerting** below (cost spikes, ungrounded-answer
+rate) — `alerting.py` already speaks SMTP with STARTTLS on port 587,
+which is exactly what Gmail's SMTP relay expects, so no code changes are
+needed, only credentials:
+
+1. On the `restaurantgpt@gmail.com` Google account: **Google Account →
+   Security → 2-Step Verification** — turn it on (Gmail's SMTP relay
+   requires an **App Password**, which only exists once 2FA is enabled).
+2. **Google Account → Security → App passwords** → create one (name it
+   "RestaurantGPT alerts") → copy the 16-character password it generates.
+   This is not your Gmail login password — use it only here.
+3. On `restaurantgpt-backend` → **Environment**, set:
+   - `SMTP_USERNAME` = `restaurantgpt@gmail.com`
+   - `SMTP_PASSWORD` = the app password from step 2
+   - `ALERT_EMAIL_TO` = whichever inbox should receive alerts (can be
+     `restaurantgpt@gmail.com` itself, or your own address)
+   (`SMTP_HOST`/`SMTP_PORT`/`ALERT_EMAIL_FROM` are already set in
+   `render.yaml` to `smtp.gmail.com`/`587`/`restaurantgpt@gmail.com`.)
+4. To actually trigger daily checks, set two **repository** secrets on
+   GitHub (Settings → Secrets and variables → Actions → New repository
+   secret): `BACKEND_BASE_URL` (the backend's Render URL) and
+   `CRON_SYNC_SECRET` (the same value you set on the backend in step 2 of
+   deploying the blueprint). Then add a repository **variable**
+   `ALERT_CHECK_ENABLED` = `true` to turn on
+   `.github/workflows/daily-alert-check.yml` (off by default). The same
+   two secrets also power `daily-live-feed-sync.yml` — add variable
+   `LIVE_FEED_SYNC_ENABLED` = `true` to turn that on too, if you're using
+   the Live Feed data source.
+
+### 7. EmailJS contact/demo form (restaurantgpt@gmail.com)
+
+The landing page's "Book a demo" dialog (`BookDemoDialog.jsx`) already
+sends through [EmailJS](https://www.emailjs.com) via `src/lib/emailjs.js`
+— no code changes needed, just an account:
+
+1. Sign up at [emailjs.com](https://www.emailjs.com) using
+   `restaurantgpt@gmail.com`.
+2. **Email Services → Add New Service** → connect Gmail → authorize
+   `restaurantgpt@gmail.com`. Copy the **Service ID**.
+3. **Email Templates → Create New Template**. The dialog sends these
+   variables, so reference them in the template body/subject with
+   `{{variable_name}}`: `form_type`, `from_name`, `from_email`,
+   `restaurant_name`, `phone`, `interest`, `message`, `requested_date`,
+   `requested_time`. Set the template's **To email** to
+   `restaurantgpt@gmail.com`. Copy the **Template ID**.
+4. **Account → General** → copy the **Public Key**.
+5. On `restaurantgpt-frontend` → **Environment**, set
+   `VITE_EMAILJS_SERVICE_ID`, `VITE_EMAILJS_TEMPLATE_ID`, and
+   `VITE_EMAILJS_PUBLIC_KEY` to the three values above, then redeploy.
+   Left unset, the dialog shows an inline "not set up yet" message
+   instead of failing silently — so this step is safe to skip and come
+   back to.
+
 ## Testing & CI
 
 - `backend/tests/` — pytest unit tests for the pure-logic pieces that don't

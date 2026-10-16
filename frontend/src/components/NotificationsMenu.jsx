@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import Icon from "./Icon.jsx";
 import useClickOutside from "../hooks/useClickOutside.js";
-import { api, getAccessToken } from "../api.js";
+import { api, getAccessToken, BASE } from "../api.js";
 
 const PUSH_ENABLED_KEY = "rgpt_push_alerts_enabled";
 const NOTIFIED_KEY_PREFIX = "rgpt_push_alert_notified_";
@@ -65,7 +65,7 @@ export default function NotificationsMenu() {
     const token = getAccessToken();
     if (!token) return;
 
-    const source = new EventSource(`/api/events/stream?token=${encodeURIComponent(token)}`);
+    const source = new EventSource(`${BASE}/events/stream?token=${encodeURIComponent(token)}`);
 
     source.addEventListener("compensation_found", (e) => {
       const data = JSON.parse(e.data);
