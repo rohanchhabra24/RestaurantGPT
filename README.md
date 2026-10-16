@@ -360,6 +360,16 @@ this file automatically when you connect the repo.
   URL, and service-role key).
 - A [Groq](https://console.groq.com) API key (`GROQ_API_KEY`).
 
+**A note on plan size:** `render.yaml` sets the backend to Render's
+Starter plan (512MB RAM). The backend loads a local embedding model
+(`sentence-transformers`/`all-MiniLM-L6-v2`, used for retrieval and the
+semantic cache) into memory once at startup — on Starter this is tight,
+not impossible, for a low-traffic demo deployment. If Render's logs show
+the backend repeatedly restarting or an out-of-memory event, bump its
+plan to Standard (2GB) in the Render dashboard (**restaurantgpt-backend
+→ Settings → Instance Type**) — no code or `render.yaml` change needed,
+and it only costs more while traffic justifies it.
+
 ### 2. Deploy the blueprint
 
 1. Render dashboard → **New → Blueprint** → select this repo. Render

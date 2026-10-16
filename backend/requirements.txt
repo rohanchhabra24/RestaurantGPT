@@ -4,6 +4,14 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 asyncpg==0.29.0
 anthropic==0.34.2
+# sentence-transformers pulls in torch, and plain PyPI resolves that to the
+# default CUDA-bundled wheel (~1.2GB, with NVIDIA driver libs this backend
+# never uses — it only ever runs the embedding model on CPU). The extra
+# index below is PyTorch's own official CPU-only wheel index, which keeps
+# the install an order of magnitude smaller and the build meaningfully
+# faster on a CPU-only host like Render.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1
 sentence-transformers==3.1.1
 python-multipart==0.0.9
 python-dotenv==1.0.1
