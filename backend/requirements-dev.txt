@@ -1,2 +1,8 @@
 -r requirements.txt
 pytest==8.3.3
+# Every test using @pytest.mark.asyncio needs this to actually run instead
+# of being silently skipped with a bare "unknown mark" warning — which is
+# exactly what was happening: 21 async tests (multi-turn context, alerting,
+# pipeline LLM-outage handling, among others) never actually executed in CI
+# because this was missing, while the suite still reported green.
+pytest-asyncio==0.24.0
