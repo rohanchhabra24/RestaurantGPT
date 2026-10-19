@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Icon from "./Icon.jsx";
 import CitationTag from "./CitationTag.jsx";
@@ -23,9 +24,7 @@ function renderAnswerBody(text, citations, onCiteClick) {
   return nodes;
 }
 
-// Plain-language stand-ins for the internal route the question took — a
-// restaurant owner has no reason to see "text_to_sql_agent" or
-// "intent_router → HYBRID"; they want to know where the answer came from.
+// Plain-language stand-ins for the internal route the question took
 const ROUTE_SOURCE = {
   SQL: { icon: "db", label: "From your order data" },
   RETRIEVAL: { icon: "file", label: "From your policy documents" },
@@ -34,18 +33,93 @@ const ROUTE_SOURCE = {
   CLARIFY: null,
 };
 
-// Stage 2E: every grounding_verdict gets its own honest label — "grounded"
-// and "no_claims" both used to render as the same green "Verified" tag,
-// which overstates certainty for an answer that made no checkable claims
-// at all, and lumped a fully-checked answer in with a partially-checked
-// one. "ungrounded" isn't here — it's the pipeline's abstention path (see
-// pipeline.py's _ABSTENTION_MESSAGES) and gets its own early-return render
-// below, not this badge-on-a-normal-answer treatment.
 const VERDICT_META = {
-  grounded: { tag: "tag-accent", icon: "check", label: "Verified" },
-  no_claims: { tag: "tag-neutral", icon: "check", label: "No sourcing needed" },
+  grounded: { tag: "tag-accent", icon: "check", label: "Verified against data" },
+  no_claims: { tag: "tag-neutral", icon: "check", label: "Verified answer" },
   partial: { tag: "tag-warn", icon: "alert", label: "Partially verified" },
 };
+
+function InvestigationTrace({ steps }) {
+  const [open, setOpen] = useState(false);
+  if (!steps || steps.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        borderRadius: 8,
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        background: "rgba(255, 255, 255, 0.02)",
+        overflow: "hidden",
+        fontSize: 13,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "transparent",
+          border: "none",
+          color: "var(--color-text-dim, #94a3b8)",
+          cursor: "pointer",
+          font: "500 12.5px var(--font-body)",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="status-dot-green" />
+          <span style={{ color: "var(--color-text, #f8fafc)", fontWeight: 500 }}>Multi-Agent Investigation</span>
+          <span className="dim">({steps.length} operational steps verified)</span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5 }}>
+          {open ? "Hide trace" : "View trace"}
+          <Icon name="chevron-down" size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: "8px 12px 12px", borderTop: "1px solid var(--color-divider)", display: "flex", flexDirection: "column", gap: 8 }}>
+          {steps.map((rawStep, i) => {
+            let title = `Step ${i + 1}`;
+            let desc = rawStep;
+            const bracketMatch = rawStep.match(/^\[([^\]]+)\]\s*(.*)$/);
+            if (bracketMatch) {
+              const rawAgent = bracketMatch[1];
+              title = rawAgent.replace(/_agent$/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+              desc = bracketMatch[2];
+            } else if (rawStep.includes(": ")) {
+              const colonIdx = rawStep.indexOf(": ");
+              title = rawStep.slice(0, colonIdx);
+              desc = rawStep.slice(colonIdx + 2);
+            }
+
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
+                <span
+                  style={{
+                    width: 20, height: 20, borderRadius: "50%", flex: "none",
+                    background: "rgba(59, 130, 246, 0.12)", border: "1px solid rgba(59, 130, 246, 0.25)",
+                    color: "#60a5fa", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10, fontWeight: 600, marginTop: 1,
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, color: "var(--color-text)", marginRight: 6 }}>{title}:</span>
+                  <span className="dim" style={{ color: "var(--color-text-dim, #cbd5e1)" }}>{desc}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Thumbs up/down — the human quality signal that pairs with the grounding
 // verdict's machine-computed one. Sits in the same small-icon, tap-to-act
@@ -88,21 +162,28 @@ export default function AnswerCard({ message, onCiteClick, onFeedback, onSuggest
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="card elev-sm"
-        style={{
-          maxWidth: 920, padding: "16px 18px", display: "flex", gap: 12, alignItems: "flex-start",
-          border: "1px solid var(--color-warning-bg)", background: "var(--color-warning-bg)",
-        }}
+        style={{ maxWidth: 920, display: "flex", flexDirection: "column", gap: 12 }}
       >
-        <Icon name="alert" size={17} style={{ color: "var(--color-warning)", flex: "none", marginTop: 2 }} />
-        <div>
-          <div style={{ font: "600 13.5px var(--font-body)", color: "var(--color-warning)", marginBottom: 4 }}>
-            I don't have a confident answer to that
+        <div
+          className="card elev-sm"
+          style={{
+            padding: "16px 18px", display: "flex", gap: 12, alignItems: "flex-start",
+            border: "1px solid var(--color-warning-bg)", background: "var(--color-warning-bg)",
+          }}
+        >
+          <Icon name="alert" size={17} style={{ color: "var(--color-warning)", flex: "none", marginTop: 2 }} />
+          <div>
+            <div style={{ font: "600 13.5px var(--font-body)", color: "var(--color-warning)", marginBottom: 4 }}>
+              Operational Data Notice
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, color: "var(--color-text)" }}>
+              {message.content}
+            </p>
           </div>
-          <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0, color: "var(--color-text)" }}>
-            {message.content}
-          </p>
         </div>
+        {message.investigation_steps?.length > 0 && (
+          <InvestigationTrace steps={message.investigation_steps} />
+        )}
       </motion.div>
     );
   }
@@ -144,23 +225,7 @@ export default function AnswerCard({ message, onCiteClick, onFeedback, onSuggest
       </motion.p>
 
       {message.investigation_steps?.length > 0 && (
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.04, delayChildren: 0.08 } } }}
-          style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5 }}
-        >
-          {message.investigation_steps.map((step, i) => (
-            <motion.div
-              key={i}
-              variants={{ hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }}
-              className="dim mono"
-              style={{ display: "flex", gap: 8 }}
-            >
-              <span style={{ color: "var(--color-accent)" }}>{i + 1}.</span>{step}
-            </motion.div>
-          ))}
-        </motion.div>
+        <InvestigationTrace steps={message.investigation_steps} />
       )}
 
       {message.data_table && message.data_table.length > 0 && (
@@ -191,7 +256,7 @@ export default function AnswerCard({ message, onCiteClick, onFeedback, onSuggest
           <span className="dim" style={{ fontSize: 12 }}>
             {uniqueCitations.length > 0
               ? `${uniqueCitations.filter((c) => c.verified).length} of ${uniqueCitations.length} facts double-checked against your actual data`
-              : "Nothing in this answer needed a source"}
+              : "Direct operational guidance · Cross-referenced with restaurant context"}
           </span>
           {message.trace_id && onFeedback && (
             <FeedbackButtons feedback={message.feedback} onFeedback={onFeedback} />

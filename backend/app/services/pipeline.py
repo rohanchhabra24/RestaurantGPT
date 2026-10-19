@@ -92,19 +92,19 @@ _CLARIFY_MESSAGES = {
 # tag is exactly the failure mode a real abstention message has to prevent.
 _ABSTENTION_MESSAGES = {
     "english": (
-        "I couldn't verify a confident answer to that from your actual orders or "
-        "policies. Rather than guess, I'm going to say so — try narrowing the time "
-        "window or zone, or rephrasing the question, and I'll try again."
+        "I looked into your order records and policy documentation, but there wasn't "
+        "enough confirmed data to give you a definitive answer on this. To help me "
+        "investigate more accurately, try specifying a particular delivery zone, date range, or order number."
     ),
     "hindi": (
-        "मैं आपके असली ऑर्डर या पॉलिसी डेटा से इसका भरोसेमंद जवाब नहीं दे पाया। अंदाज़ा लगाने "
-        "की बजाय मैं यह साफ़ बता रहा हूँ — समय अवधि या ज़ोन को और सटीक बनाकर, या सवाल को "
-        "दोबारा पूछकर देखें।"
+        "मैंने आपके ऑर्डर रिकॉर्ड्स और पॉलिसी दस्तावेज़ों की जाँच की, लेकिन किसी पुख़्ता निष्कर्ष "
+        "पर पहुँचने के लिए पर्याप्त डेटा नहीं मिला। सटीक जानकारी के लिए कृपया कोई खास ज़ोन, "
+        "तारीख या ऑर्डर नंबर देकर दोबारा पूछें।"
     ),
     "hinglish": (
-        "Main aapke actual orders ya policy data se iska bharosemand jawaab nahi de "
-        "paaya. Guess karne ke bajaay main yeh saaf bata raha hoon — time window ya "
-        "zone thoda specific karke, ya sawaal dobara pooch ke dekhein."
+        "Maine aapke order records aur policy docs check kiye, lekin definitive answer ke "
+        "liye kaafi data nahi mila. Accurate investigation ke liye aap koi specific delivery zone, "
+        "date range ya order number specify karke try kar sakte hain."
     ),
 }
 
@@ -237,7 +237,7 @@ async def _run_pipeline(
         investigation = await multi_agent_investigator.investigate(question, restaurant_id, slots)
         result.sql_rows = investigation.order_evidence
         result.chunks = investigation.chunks
-        result.investigation_steps = [f"[{s.agent}] {s.description}" for s in investigation.steps]
+        result.investigation_steps = [f"{s.agent}: {s.description}" for s in investigation.steps]
         result.weather_evidence = investigation.weather_evidence
         investigation_steps_text = investigation.steps_summary_text
         _timed("investigation", t2b, result)

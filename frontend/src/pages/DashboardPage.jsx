@@ -136,7 +136,87 @@ function StatTile({ label, value, prefix = "", suffix = "", decimals = 0, icon }
 // parsing the number first. problemZone is optional (wired in once the
 // backend exposes it) — when present it answers "where", not just "how
 // many", right in the same glance.
-function CriticalOpsTile({ breaches, avgDelaySeconds, problemZone }) {
+function PlatformBadge({ platform }) {
+  if (!platform) return null;
+  const p = platform.toLowerCase();
+  const cls = p.includes("swiggy")
+    ? "platform-badge platform-badge-swiggy"
+    : p.includes("zomato")
+    ? "platform-badge platform-badge-zomato"
+    : "platform-badge platform-badge-other";
+  const label = p.includes("swiggy") ? "Swiggy" : p.includes("zomato") ? "Zomato" : platform;
+  return <span className={cls}>{label}</span>;
+}
+
+function LiveOpsStatusStrip({ kpis, ordersCount, onRefresh, refreshing }) {
+  const currentHour = new Date().getHours();
+  const rushPhase =
+    currentHour >= 12 && currentHour <= 15
+      ? "Lunch Rush Active"
+      : currentHour >= 19 && currentHour <= 23
+      ? "Dinner Rush Active"
+      : "Kitchen Prep / Off-Peak";
+
+  const totalOrders = kpis?.orders_today ?? ordersCount ?? 0;
+  const breaches = kpis?.sla_breaches_today ?? 0;
+  const onTimePct = totalOrders > 0 ? Math.max(0, Math.round(((totalOrders - breaches) / totalOrders) * 100)) : 100;
+
+  return (
+    <div className="live-ops-strip">
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+          <span className="status-dot status-dot-green status-dot-pulse" />
+          <span style={{ font: "600 13px var(--font-body)", color: "var(--color-text, #f8fafc)" }}>
+            Live Ops Active
+          </span>
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <PlatformBadge platform="Swiggy" />
+          <PlatformBadge platform="Zomato" />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 12.5 }}>
+        <span style={{ color: "var(--color-text-dim, #94a3b8)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Icon name="clock" size={12} style={{ color: "var(--color-accent)" }} />
+          <span style={{ fontWeight: 500, color: "var(--color-text)" }}>{rushPhase}</span>
+        </span>
+
+        <span className="dim">·</span>
+
+        <span style={{ color: "var(--color-text-dim, #94a3b8)" }}>
+          On-Time SLA:{" "}
+          <strong style={{ color: onTimePct >= 90 ? "#30d158" : "#f59e0b", fontWeight: 600 }}>
+            {onTimePct}%
+          </strong>
+        </span>
+
+        <span className="dim">·</span>
+
+        <span className="mono" style={{ color: "var(--color-text)" }}>
+          <strong>{totalOrders}</strong> orders today
+        </span>
+
+        {onRefresh && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            onClick={onRefresh}
+            disabled={refreshing}
+            style={{ width: 26, height: 26, marginLeft: 2 }}
+            title="Refresh operational data"
+            aria-label="Refresh operational data"
+          >
+            <Icon name="bolt" size={13} style={{ transform: refreshing ? "rotate(180deg)" : "none", transition: "transform 0.4s ease" }} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The "is anything on fire right now" tile
+function CriticalOpsTile({ breaches, avgDelaySeconds, problemZone, onInvestigate }) {
   const known = breaches != null;
   const hasIssue = known && breaches > 0;
   const minutes = avgDelaySeconds != null ? Math.abs(avgDelaySeconds / 60) : null;
@@ -152,7 +232,7 @@ function CriticalOpsTile({ breaches, avgDelaySeconds, problemZone }) {
         background: hasIssue ? "color-mix(in srgb, var(--color-danger) 10%, var(--color-surface))" : "var(--color-accent-900)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0, flexWrap: "wrap" }}>
         <span
           style={{
             width: 42, height: 42, borderRadius: "50%", flex: "none",
@@ -164,12 +244,38 @@ function CriticalOpsTile({ breaches, avgDelaySeconds, problemZone }) {
         </span>
         <div style={{ minWidth: 0 }}>
           <div className="card-kicker" style={{ marginBottom: 2 }}>Right now</div>
-          <div style={{ font: "600 24px var(--font-body)" }}>
-            {known ? <CountUp value={breaches} decimals={0} /> : "—"} SLA breach{breaches === 1 ? "" : "es"} today
-            {hasIssue && problemZone && <span className="dim" style={{ fontWeight: 400, fontSize: 15 }}> &nbsp;·&nbsp; {problemZone}</span>}
+          <div style={{ font: "600 24px var(--font-body)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span>{known ? <CountUp value={breaches} decimals={0} /> : "—"} SLA breach{breaches === 1 ? "" : "es"} today</span>
+            {hasIssue && problemZone && (
+              <span
+                style={{
+                  background: "rgba(239, 68, 68, 0.16)",
+                  border: "1px solid rgba(239, 68, 68, 0.35)",
+                  color: "#f87171",
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                Hotspot: {problemZone}
+              </span>
+            )}
           </div>
-          <div className="dim" style={{ fontSize: 12.5 }}>
-            {hasIssue ? "Worth a look before the next rush." : "Nothing breaching SLA right now."}
+          <div className="dim" style={{ fontSize: 12.5, display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <span>{hasIssue ? "Worth a look before the next rush." : "Nothing breaching SLA right now."}</span>
+            {hasIssue && onInvestigate && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: 11.5, padding: "3px 8px", height: "auto", gap: 5 }}
+                onClick={onInvestigate}
+              >
+                <Icon name="search" size={11} />
+                Investigate in Chat
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -252,9 +358,11 @@ function OrderRow({ order, selected, onClick, justDrafted }) {
         <div style={{ fontSize: 13.5 }}>
           <span className="mono" style={{ fontWeight: 600 }}>#{order.aggregator_order_id}</span>
         </div>
-        <div className="dim" style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 4 }}>
-          {order.zone} · {order.platform}
-          {order.weather_flag && <Icon name="rain" size={11} />}
+        <div className="dim" style={{ fontSize: 11.5, display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <span>{order.zone}</span>
+          <span>·</span>
+          <PlatformBadge platform={order.platform} />
+          {order.weather_flag && <Icon name="rain" size={11} style={{ color: "var(--color-accent)" }} />}
         </div>
       </div>
       {statusTag(order)}
@@ -300,8 +408,8 @@ function OrderDetail({ order, onSweep, sweeping, sweepError, sweepResult, onBack
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>Platform</div>
-          <span className="tag tag-neutral mono">{order.platform}</span>
+          <div style={{ fontSize: 11, color: "var(--color-neutral-500)", marginBottom: 4 }}>Platform</div>
+          <PlatformBadge platform={order.platform} />
         </div>
       </div>
 
@@ -435,6 +543,7 @@ export default function DashboardPage() {
   // reload still respects whatever the operator dismissed earlier today.
   const [forceShowDigest, setForceShowDigest] = useState(false);
   const [showRevenue, setShowRevenue] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -570,6 +679,28 @@ export default function DashboardPage() {
   });
   const activeFilterCount = (platformFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0);
 
+  function handleInvestigate() {
+    const rawZone = kpis?.top_problem_zone;
+    let targetZone = "Zone 3";
+    if (rawZone) {
+      if (rawZone.includes(" in ")) {
+        targetZone = rawZone.split(" in ")[1].trim();
+      } else {
+        targetZone = rawZone.trim();
+      }
+    }
+    navigate(`/?q=${encodeURIComponent(`Why are delivery times spiking in ${targetZone}?`)}`);
+  }
+
+  function handleLiveRefresh() {
+    setRefreshing(true);
+    refreshOrders();
+    Promise.all([
+      api.getOperationsSummary().then(setKpis).catch(() => {}),
+      api.getOrderTrends(range, customFrom, customTo).then(setTrends).catch(() => {}),
+    ]).finally(() => setRefreshing(false));
+  }
+
   function changeTab(key) {
     setTab(key);
     setMobileView("list");
@@ -624,24 +755,21 @@ export default function DashboardPage() {
         <EmptyDashboardState onUpload={() => setUploadOpen(true)} onAskInChat={() => navigate("/")} />
       ) : (
       <>
-      {/* On a phone this pair — the compensation find and the "is anything
-          on fire" read — stays pinned while the rest of the page scrolls
-          (see .dashboard-sticky-summary's mobile-only rule in theme.css),
-          so a manager scrolled deep into the order list while walking the
-          floor doesn't lose the two things worth checking first. Above
-          mobile width the rule is a no-op and this sits in normal flow. */}
-      <div className="dashboard-sticky-summary" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="dashboard-sticky-summary" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <LiveOpsStatusStrip
+          kpis={kpis}
+          ordersCount={orders?.length}
+          onRefresh={handleLiveRefresh}
+          refreshing={refreshing}
+        />
+
         <CompensationDigestBanner digest={digest} forceShow={forceShowDigest} onReview={reviewDigestClaims} onDismiss={dismissDigest} />
 
-        {/* The "is anything on fire" read, above everything else on this
-            page including revenue — see CriticalOpsTile's own comment for
-            why. SLA breaches + delivery pace used to live further down,
-            inside the "Delivery & SLA" group below; promoted here instead
-            of duplicated there. */}
         <CriticalOpsTile
           breaches={kpis?.sla_breaches_today}
           avgDelaySeconds={kpis?.avg_delivery_delay_seconds}
           problemZone={kpis?.top_problem_zone}
+          onInvestigate={handleInvestigate}
         />
       </div>
 

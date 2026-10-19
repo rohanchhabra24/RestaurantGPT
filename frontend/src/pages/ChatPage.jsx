@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon.jsx";
@@ -15,13 +15,6 @@ const EXAMPLE_PROMPTS = [
   { icon: "clock", kicker: "Quick number", title: "What was our average delivery time last week?", body: "A straight lookup — no guesswork, no cross-referencing spreadsheets." },
 ];
 
-// ChatPage is unmounted every time you switch to another nav tab (Dashboard,
-// Data Sources, Issues — React Router swaps the route component out), so
-// anything kept only in local useState — which open conversation, an
-// unsent draft — was getting wiped and remounting back to the empty
-// history-list view. sessionStorage survives the unmount/remount (and a
-// reload, until the tab closes) without needing to lift this state up
-// into a provider above <Routes> just to keep it alive across a tab switch.
 const DRAFT_KEY = "rgpt-chat-draft";
 const ACTIVE_ID_KEY = "rgpt-chat-active-id";
 
@@ -29,7 +22,7 @@ function readStorage(key) {
   try {
     return sessionStorage.getItem(key) || "";
   } catch {
-    return ""; // private browsing / blocked storage — falls back to today's behavior
+    return "";
   }
 }
 
@@ -38,18 +31,27 @@ function writeStorage(key, value) {
     if (value) sessionStorage.setItem(key, value);
     else sessionStorage.removeItem(key);
   } catch {
-    // ignore — same fallback as above
+    // ignore
   }
 }
 
 export default function ChatPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const qParam = searchParams.get("q");
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveIdState] = useState(() => readStorage(ACTIVE_ID_KEY) || null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraftState] = useState(() => readStorage(DRAFT_KEY));
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (qParam && !sending) {
+      setDraft(qParam);
+      setSearchParams({}, { replace: true });
+    }
+  }, [qParam]);
 
   function setActiveId(id) {
     setActiveIdState(id);

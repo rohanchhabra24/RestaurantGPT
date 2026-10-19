@@ -51,6 +51,10 @@ export default function HeroStatTile({ label, icon, format = "number", value, de
 
   const hovered = hoverIdx != null ? points[hoverIdx] : null;
   const deltaGood = deltaPct == null ? null : deltaPct >= 0;
+  const prevVal = hoverIdx != null && hoverIdx > 0 ? points[hoverIdx - 1].value : null;
+  const hoverDelta = (hovered && prevVal != null && prevVal > 0)
+    ? Math.round(((hovered.value - prevVal) / prevVal) * 100)
+    : null;
 
   return (
     <div className={`card elev-sm hero-stat-tile hero-stat-tile-${size}`} style={{ padding: 18, gap: 6, position: "relative" }}>
@@ -82,49 +86,91 @@ export default function HeroStatTile({ label, icon, format = "number", value, de
       </div>
 
       {points.length > 1 && (
-        <div style={{ marginTop: 6, position: "relative" }}>
+        <div style={{ marginTop: 8, position: "relative" }}>
           <svg
             ref={svgRef}
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
             preserveAspectRatio="none"
-            style={{ width: "100%", height: size === "lg" ? 48 : 36, display: "block", cursor: "crosshair" }}
+            style={{ width: "100%", height: size === "lg" ? 52 : 38, display: "block", cursor: "crosshair", overflow: "visible" }}
             onMouseMove={handleMove}
             onMouseLeave={() => setHoverIdx(null)}
           >
+            <defs>
+              <linearGradient id={`grad-${label.replace(/\s+/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chartBaseColor} stopOpacity="0.25" />
+                <stop offset="100%" stopColor={chartBaseColor} stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
             <path
               d={`${pathFor(vals, xFor, yFor)} L ${xFor(points.length - 1)} ${HEIGHT} L ${xFor(0)} ${HEIGHT} Z`}
-              fill={chartHoverColor}
-              opacity="0.1"
+              fill={`url(#grad-${label.replace(/\s+/g, "")})`}
               stroke="none"
             />
-            <path d={pathFor(vals, xFor, yFor)} fill="none" stroke={chartBaseColor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={pathFor(vals, xFor, yFor)} fill="none" stroke={chartBaseColor} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
             {hoverIdx != null && (
-              <line x1={xFor(hoverIdx)} x2={xFor(hoverIdx)} y1={0} y2={HEIGHT} stroke="var(--color-divider)" strokeWidth="1" />
+              <line x1={xFor(hoverIdx)} x2={xFor(hoverIdx)} y1={0} y2={HEIGHT} stroke="rgba(255,255,255,0.2)" strokeDasharray="2,2" strokeWidth="1.2" />
             )}
             <circle
               cx={xFor(points.length - 1)}
               cy={yFor(vals[vals.length - 1])}
               r="4.5"
               fill={chartHoverColor}
-              stroke="var(--color-surface)"
-              strokeWidth="2"
+              stroke="var(--color-surface, #0f121d)"
+              strokeWidth="2.5"
             />
-            {hoverIdx != null && hoverIdx !== points.length - 1 && (
-              <circle cx={xFor(hoverIdx)} cy={yFor(vals[hoverIdx])} r="4.5" fill={chartHoverColor} stroke="var(--color-surface)" strokeWidth="2" />
+            {hoverIdx != null && (
+              <g>
+                <circle cx={xFor(hoverIdx)} cy={yFor(vals[hoverIdx])} r="7" fill={chartHoverColor} opacity="0.3" />
+                <circle cx={xFor(hoverIdx)} cy={yFor(vals[hoverIdx])} r="4.5" fill={chartHoverColor} stroke="var(--color-surface, #0f121d)" strokeWidth="2" />
+              </g>
             )}
           </svg>
           {hovered && (
             <div
-              className="card elev-lg mono"
+              className="elev-lg"
               style={{
-                position: "absolute", top: -6, pointerEvents: "none", padding: "5px 9px", fontSize: 11,
+                position: "absolute",
+                top: -8,
+                pointerEvents: "none",
+                padding: "8px 12px",
+                fontSize: 12,
                 left: `${(xFor(hoverIdx) / WIDTH) * 100}%`,
-                transform: `translate(${hoverIdx < points.length / 2 ? "4px" : "calc(-100% - 4px)"}, -100%)`,
-                whiteSpace: "nowrap", gap: 2, zIndex: 5,
+                transform: `translate(${hoverIdx < points.length / 2 ? "8px" : "calc(-100% - 8px)"}, -100%)`,
+                whiteSpace: "nowrap",
+                zIndex: 10,
+                background: "rgba(18, 21, 33, 0.94)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                borderRadius: 8,
+                boxShadow: "0 12px 28px -6px rgba(0, 0, 0, 0.6)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
               }}
             >
-              <div className="dim" style={{ fontSize: 10 }}>{formatBucket(hovered.bucket, granularity)}</div>
-              <div style={{ fontWeight: 600 }}>{formatValue(hovered.value, format)}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <span className="dim" style={{ fontSize: 11, fontWeight: 500 }}>
+                  {formatBucket(hovered.bucket, granularity)}
+                </span>
+                {hoverDelta != null && (
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: hoverDelta >= 0 ? "#10b981" : "#f43f5e",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 2,
+                    }}
+                  >
+                    {hoverDelta >= 0 ? "↑" : "↓"}{Math.abs(hoverDelta)}%
+                  </span>
+                )}
+              </div>
+              <div className="mono" style={{ fontWeight: 700, fontSize: 14, color: "var(--color-text, #f8fafc)" }}>
+                {formatValue(hovered.value, format)}
+              </div>
             </div>
           )}
         </div>
