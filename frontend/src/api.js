@@ -4,7 +4,11 @@
 // frontend needs the backend's real origin instead — set at build time via
 // VITE_API_BASE_URL. Falls back to the relative path so nothing changes
 // for dev or a same-origin deployment that doesn't set it.
-export const BASE = `${import.meta.env.VITE_API_BASE_URL || ""}/api`;
+// Trailing slash stripped defensively — VITE_API_BASE_URL=https://x.com/
+// (trailing slash) would otherwise double up into https://x.com//api/...,
+// which 404s on every request post-login and is easy to type by accident
+// when copying a URL out of Render's dashboard.
+export const BASE = `${(import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
 // Set by authContext.jsx whenever the Supabase session changes. Kept as a
 // module-level value rather than threaded through every api.js call site —
