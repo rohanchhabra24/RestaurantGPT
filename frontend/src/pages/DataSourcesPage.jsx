@@ -47,6 +47,15 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
 
   if (!liveFeed) return null;
 
+  // The built-in synthetic feed is demo furniture — only the one
+  // designated demo account (is_demo_account, from the backend's
+  // DEMO_RESTAURANT_ID) gets to generate fake orders with these buttons.
+  // Every other real signup sees a clear "point this at your own feed"
+  // prompt instead, so nobody accidentally fills their real orders table
+  // with synthetic data. Once a real account configures its own URL,
+  // using_default_feed goes false and sync/backfill work normally for them.
+  const usingUnconfiguredDemoFeed = liveFeed.using_default_feed && !liveFeed.is_demo_account;
+
   async function save() {
     await onSaveUrl(urlDraft.trim() || null);
     setEditing(false);
@@ -60,21 +69,27 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
           <div style={{ minWidth: 0 }}>
             <div className="card-title">Live Feed</div>
             <div className="dim" style={{ fontSize: 12 }}>
-              {liveFeed.using_default_feed ? "Using the built-in demo feed" : `Connected to ${liveFeed.configured_url}`}
-              {liveFeed.last_synced_date ? ` · last synced ${liveFeed.last_synced_date}` : " · not synced yet"}
-              {` · ${liveFeed.orders_from_feed} orders imported from it so far`}
+              {usingUnconfiguredDemoFeed
+                ? "No feed source configured yet"
+                : liveFeed.using_default_feed ? "Using the built-in demo feed" : `Connected to ${liveFeed.configured_url}`}
+              {!usingUnconfiguredDemoFeed && (liveFeed.last_synced_date ? ` · last synced ${liveFeed.last_synced_date}` : " · not synced yet")}
+              {!usingUnconfiguredDemoFeed && ` · ${liveFeed.orders_from_feed} orders imported from it so far`}
             </div>
           </div>
         </div>
         <div className="wrap-header-row-actions">
-          <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onSync} disabled={syncing}>
-            {syncing ? "Syncing…" : "Sync now"}
-          </button>
-          <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onBackfill} disabled={backfilling}>
-            {backfilling ? "Backfilling…" : "Backfill 30 days"}
-          </button>
+          {!usingUnconfiguredDemoFeed && (
+            <>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onSync} disabled={syncing}>
+                {syncing ? "Syncing…" : "Sync now"}
+              </button>
+              <button type="button" className="btn btn-secondary" style={{ fontSize: 12.5 }} onClick={onBackfill} disabled={backfilling}>
+                {backfilling ? "Backfilling…" : "Backfill 30 days"}
+              </button>
+            </>
+          )}
           <button type="button" className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setEditing((v) => !v)}>
-            {editing ? "Cancel" : "Change source"}
+            {editing ? "Cancel" : usingUnconfiguredDemoFeed ? "Set feed source" : "Change source"}
           </button>
         </div>
       </div>
@@ -84,7 +99,7 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
           <input
             className="input"
             style={{ flex: 1 }}
-            placeholder="https://your-feed.example.com/orders (leave blank to use the built-in demo feed)"
+            placeholder="https://your-feed.example.com/orders"
             value={urlDraft}
             onChange={(e) => setUrlDraft(e.target.value)}
           />
@@ -115,10 +130,9 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
       )}
 
       <p className="dim" style={{ fontSize: 11, margin: 0 }}>
-        Pulls the previous day's orders automatically the first time anyone opens this page
-        each day — "Sync now" runs it on demand. For a realistic demo dataset right away, use
-        "Backfill 30 days" instead of waiting one real day at a time. Point it at your own
-        aggregator export API any time by changing the source above.
+        {usingUnconfiguredDemoFeed
+          ? "Point this at your aggregator's order export API (or any HTTPS endpoint that returns the same order shape) to start pulling a daily history automatically — see docs/live-feed-data-source.md."
+          : "Pulls the previous day's orders automatically the first time anyone opens this page each day — \"Sync now\" runs it on demand, \"Backfill 30 days\" fills in history right away instead of waiting one real day at a time. Point it at a different source any time by changing the source above."}
       </p>
     </div>
   );

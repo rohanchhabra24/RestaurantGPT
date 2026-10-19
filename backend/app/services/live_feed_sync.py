@@ -127,6 +127,10 @@ async def _insert_orders(conn: asyncpg.Connection, rid: uuid.UUID, orders: list[
     return inserted
 
 
+def _is_demo_restaurant(restaurant_id: str) -> bool:
+    return restaurant_id == settings.demo_restaurant_id
+
+
 async def sync_yesterday(pool: asyncpg.Pool, restaurant_id: str) -> dict:
     rid = uuid.UUID(restaurant_id)
     yesterday = _yesterday()
@@ -141,6 +145,15 @@ async def sync_yesterday(pool: asyncpg.Pool, restaurant_id: str) -> dict:
             return {"synced": False, "reason": "restaurant not found"}
         if row["live_feed_last_synced_date"] == yesterday:
             return {"synced": False, "reason": "already synced", "date": yesterday.isoformat(), "new_orders": 0}
+
+        # The built-in synthetic feed is demo furniture, not a real data
+        # source — only the one designated demo restaurant (settings.
+        # demo_restaurant_id) gets to fall back to it. Every other real
+        # signup that hasn't configured its own live_feed_url yet must not
+        # have "Sync now" quietly write fake orders into their real orders
+        # table; they need to point this at an actual feed first.
+        if not row["live_feed_url"] and not _is_demo_restaurant(restaurant_id):
+            return {"synced": False, "reason": "no live feed source configured"}
 
         feed_url = row["live_feed_url"] or _default_feed_url()
         is_default = not row["live_feed_url"]
@@ -219,6 +232,10 @@ async def backfill(pool: asyncpg.Pool, restaurant_id: str, days: int = 30) -> di
         )
         if row is None:
             return {"synced": False, "reason": "restaurant not found"}
+
+        # Same real-tenant guard as sync_yesterday — see its comment.
+        if not row["live_feed_url"] and not _is_demo_restaurant(restaurant_id):
+            return {"synced": False, "reason": "no live feed source configured"}
 
         feed_url = row["live_feed_url"] or _default_feed_url()
         is_default = not row["live_feed_url"]

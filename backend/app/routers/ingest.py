@@ -59,6 +59,13 @@ async def list_sources(restaurant_id: str = Depends(require_tenant)):
         "live_feed": {
             "configured_url": restaurant_row["live_feed_url"],
             "using_default_feed": restaurant_row["live_feed_url"] is None,
+            # Only the one designated demo restaurant gets the built-in
+            # synthetic feed as a working fallback (see live_feed_sync.py's
+            # _is_demo_restaurant) — every other real signup sees this as
+            # False and the frontend prompts them to configure a real feed
+            # instead of offering to generate fake orders into their own
+            # account.
+            "is_demo_account": restaurant_id == settings.demo_restaurant_id,
             "last_synced_date": restaurant_row["live_feed_last_synced_date"].isoformat()
                 if restaurant_row["live_feed_last_synced_date"] else None,
             "orders_from_feed": live_feed_count,

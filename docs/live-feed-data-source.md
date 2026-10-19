@@ -41,12 +41,19 @@ zero code changes.
   same way a real aggregator's public order-export endpoint would need
   only an API key, not a login.
 - **`app/services/live_feed_sync.py`** — `sync_yesterday(pool, restaurant_id)`
-  fetches from `restaurants.live_feed_url` (or the built-in demo feed if
-  unset) and inserts new rows, `source='live_feed'`, idempotently (a
-  unique index on `(restaurant_id, aggregator_order_id)` — migration 011
-  — makes a duplicate fetch a no-op via `ON CONFLICT DO NOTHING`, and
+  fetches from `restaurants.live_feed_url` and inserts new rows,
+  `source='live_feed'`, idempotently (a unique index on
+  `(restaurant_id, aggregator_order_id)` — migration 011 — makes a
+  duplicate fetch a no-op via `ON CONFLICT DO NOTHING`, and
   `restaurants.live_feed_last_synced_date` makes a second call the same
-  day a no-op too, without hitting the network again).
+  day a no-op too, without hitting the network again). The built-in
+  synthetic feed is only used as a fallback for the one restaurant whose
+  id matches `DEMO_RESTAURANT_ID` — every other restaurant with no
+  `live_feed_url` configured gets `{"synced": false, "reason": "no live
+  feed source configured"}` instead of silently generating fake orders
+  into a real account (`_is_demo_restaurant`). `sync_all` (below) never
+  used the fallback in the first place; this closes the same gap on the
+  one-click manual path.
 - **`POST /api/ingest/live-feed/sync`** — the operator-facing manual
   trigger (Data Sources page). Also called automatically, once, the first
   time anyone opens that page each day — same "lazy, at most once a day"
@@ -59,15 +66,14 @@ zero code changes.
   no user session to authenticate as; returns 404 until that secret is
   configured, so it's inert by default rather than an open endpoint.
 - **`POST /api/ingest/live-feed/backfill?days=N`** — the "Backfill 30
-  days" button (Data Sources page). `sync_yesterday` only ever pulls one
-  day, by design — that's what makes it a faithful daily-feed simulation,
-  but it also means a brand-new signup starts with an empty Live Feed
-  history and would need 30 real days to see a realistic multi-day
-  dataset. This calls the exact same fetch-and-insert path once per day
-  in a range instead (capped at `MAX_BACKFILL_DAYS = 90`), so a fresh
-  restaurant can get a realistic demo history in one click. Idempotent
-  the same way — safe to call again, or to call on top of days a real
-  daily sync already covered.
+  days" button (Data Sources page, demo restaurant only — see above).
+  `sync_yesterday` only ever pulls one day, by design — that's what makes
+  it a faithful daily-feed simulation, but it also means the demo account
+  would need 30 real days to see a realistic multi-day dataset one sync
+  at a time. This calls the exact same fetch-and-insert path once per day
+  in a range instead (capped at `MAX_BACKFILL_DAYS = 90`), so it gets a
+  realistic demo history in one click. Idempotent the same way — safe to
+  call again, or to call on top of days a real daily sync already covered.
 
 ## Turning on real unattended automation
 
@@ -116,16 +122,37 @@ Sync repeatedly — Sync is capped at one day by design.
 
 ## Trying it locally without any of the above
 
-Nothing above is required to see it work. With the backend running
-locally against a real Supabase project:
+Nothing above is required to see it work — as long as the access token
+belongs to the demo restaurant (`DEMO_RESTAURANT_ID`, see "Demo data stays
+on the demo account" below), since that's the only account the built-in
+synthetic feed works as a fallback for. With the backend running locally
+against a real Supabase project:
 
 ```bash
 curl -X POST http://localhost:8000/api/ingest/live-feed/sync \
-  -H "Authorization: Bearer <your access token>"
+  -H "Authorization: Bearer <demo restaurant's access token>"
 ```
 
 This calls the exact same lazy sync the Data Sources page triggers — it
 fetches yesterday's synthetic orders from your own running backend's
 `/api/demo-feed/orders` and inserts them, no external URL or GitHub
 Actions setup required. The "Sync now" button on the Data Sources page
-does the same thing from the UI.
+does the same thing from the UI. Any other restaurant gets `{"synced":
+false, "reason": "no live feed source configured"}` until it configures
+its own `live_feed_url` via `POST /api/ingest/live-feed/config`.
+
+## Demo data stays on the demo account
+
+A real restaurant that signs up and never touches Live Feed settings must
+never end up with synthetic orders mixed into their real data — that's
+true whether the sync is triggered by the nightly cron (`sync_all` only
+ever processes restaurants with a configured `live_feed_url` — it never
+had the fallback) or by a human clicking "Sync now"/"Backfill 30 days" on
+their own Data Sources page (which, until this was fixed, *did* fall back
+to the demo feed for anyone who hadn't configured a real source yet).
+Both paths now agree: only the restaurant matching `DEMO_RESTAURANT_ID`
+gets the synthetic feed as a fallback. Every other restaurant sees "No
+feed source configured yet" on Data Sources, with sync/backfill hidden
+until they set a real `live_feed_url` via "Set feed source" — at which
+point `using_default_feed` goes `false` for them and both buttons work
+normally against their own feed.
