@@ -58,7 +58,7 @@ export default function Sidebar({ open, onToggleNav }) {
             return (
               <NavLink key={item.to} to={item.to} end={item.end} aria-current={active ? "page" : undefined} className="app-sidebar-link" title={open ? undefined : item.label}>
                 {active && <motion.span className="app-sidebar-active-pill" layoutId="sidebarActivePill" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
-                <Icon name={item.icon} size={15} style={{ position: "relative", zIndex: 1, flex: "none" }} />
+                <Icon name={item.icon} size={15} style={{ position: "relative", zIndex: 1, flex: "none", color: active ? "var(--color-accent)" : "inherit" }} />
                 <span className="app-sidebar-link-label" style={{ position: "relative", zIndex: 1 }}>{item.label}</span>
               </NavLink>
             );

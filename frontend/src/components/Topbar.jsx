@@ -5,39 +5,32 @@ import { useTranslation } from "react-i18next";
 import Icon from "./Icon.jsx";
 import NotificationsMenu from "./NotificationsMenu.jsx";
 import UploadDialog from "./UploadDialog.jsx";
+import CommandPalette from "./CommandPalette.jsx";
 import { api } from "../api.js";
 
-// The app's persistent chrome — brand identity plus page-level utilities
-// (notifications, upload) that should always be reachable regardless of
-// whether the nav sidebar is open, collapsed, or (on mobile) off-canvas.
-// The sidebar owns its own collapse/expand toggle and the account menu
-// now (Sidebar.jsx) — this bar's left corner is the logo alone, not the
-// logo competing with a toggle button for the same spot. The one
-// exception is the mobile-only drawer trigger below: below 760px the
-// sidebar is fully off-canvas when closed, so its own internal toggle is
-// unreachable — something outside the drawer has to be able to open it.
-// It's deliberately small and ghost-styled so it still reads as secondary
-// to the logo, not a rival to it.
 export default function Topbar({ navOpen, onToggleNav }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [groundedRate, setGroundedRate] = useState(null);
   const [digest, setDigest] = useState(null);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     api.getInsightsSummary().then((d) => setGroundedRate(d.total_queries > 0 ? d.grounded_rate : null)).catch(() => {});
   }, []);
 
-  // The compensation-find badge: lives here, not just on the Dashboard's
-  // own banner, because dismissing that banner used to make a real
-  // four-figure finding disappear for the rest of the day with no way
-  // back short of remembering to check again (a design-audit finding —
-  // "high-dollar findings should never permanently vanish on an
-  // accidental click"). This stays visible everywhere in the app,
-  // dismissed or not, for as long as the money is still unclaimed —
-  // clicking it jumps to the Dashboard and re-opens the full banner
-  // there regardless of whether it was dismissed earlier today.
   useEffect(() => {
     api.getCompensationDigest().then(setDigest).catch(() => {});
   }, []);
@@ -53,18 +46,29 @@ export default function Topbar({ navOpen, onToggleNav }) {
         <Icon name={navOpen ? "x" : "menu"} size={15} />
       </button>
 
-      {/* Plain <img> straight on the bar's own background — no card, pill,
-          or button wrapper around it. The PNG itself is fully transparent
-          (verified: corner/background alpha is 0), so anything that reads
-          as "a background behind the logo" would be a wrapper we added,
-          not the asset — so this deliberately has none. Sized up slightly
-          from its old 24px now that it's the corner's only occupant on
-          desktop, so it actually reads as the leading element rather than
-          competing with (and losing to) a bordered, hover-stated button. */}
       <img src="/logo.png" alt="RestaurantGPT" style={{ height: 26, objectFit: "contain", flex: "none" }} />
       <span className="app-topbar-tagline">{t("nav.tagline")}</span>
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Command palette search trigger */}
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          className="btn btn-secondary"
+          style={{
+            padding: "5px 12px",
+            fontSize: 12.5,
+            gap: 8,
+            color: "var(--color-text-dim)",
+            borderRadius: "var(--radius-pill)",
+          }}
+          title="Open command palette (⌘K)"
+        >
+          <Icon name="search" size={13} />
+          <span className="app-topbar-search-label" style={{ display: "inline" }}>Search...</span>
+          <kbd style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "rgba(255, 255, 255, 0.08)", border: "1px solid var(--color-divider)", fontFamily: "var(--font-mono)" }}>⌘K</kbd>
+        </button>
+
         {digest && digest.new_claims_count > 0 && (
           <button
             type="button"
@@ -103,6 +107,7 @@ export default function Topbar({ navOpen, onToggleNav }) {
       </div>
 
       {uploadOpen && <UploadDialog onClose={() => setUploadOpen(false)} />}
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onOpenUpload={() => setUploadOpen(true)} />
     </div>
   );
 }
