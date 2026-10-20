@@ -18,6 +18,7 @@ export default function UploadDialog({ onClose, onIndexed }) {
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [impactReport, setImpactReport] = useState(null);
   const [pendingMapping, setPendingMapping] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
 
   function pickFiles(list) {
@@ -97,13 +98,16 @@ export default function UploadDialog({ onClose, onIndexed }) {
         <div className="dialog-body" style={{ gap: 0 }}>
           <div
             onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
             onDrop={(e) => {
               e.preventDefault();
+              setDragOver(false);
               pickFiles(e.dataTransfer.files);
             }}
+            className={dragOver ? "upload-dropzone-active" : undefined}
             style={{
-              border: "1.5px dashed var(--color-divider)",
+              border: dragOver ? "1.5px dashed var(--color-accent)" : "1.5px dashed var(--color-divider)",
               borderRadius: "var(--radius-md)",
               padding: "40px 26px",
               display: "flex",
@@ -111,12 +115,17 @@ export default function UploadDialog({ onClose, onIndexed }) {
               alignItems: "center",
               gap: 6,
               textAlign: "center",
-              background: "color-mix(in srgb, var(--color-accent) 6%, transparent)",
+              background: dragOver
+                ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                : "color-mix(in srgb, var(--color-accent) 6%, transparent)",
               cursor: "pointer",
+              transition: "background .15s ease, border-color .15s ease",
             }}
           >
             <Icon name="upload" size={28} style={{ color: "var(--color-accent)", marginBottom: 4 }} />
-            <div style={{ fontSize: 15, fontWeight: 500 }}>Drag CSV, PDF or text files here, or click to browse</div>
+            <div style={{ fontSize: 15, fontWeight: 500 }}>
+              {dragOver ? "Drop to upload" : "Drag CSV, PDF or text files here, or click to browse"}
+            </div>
             <div className="dim" style={{ fontSize: 12 }}>Order logs (.csv), SLA policies (.pdf/.md/.txt)</div>
             <input
               ref={inputRef}

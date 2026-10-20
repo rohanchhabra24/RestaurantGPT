@@ -711,6 +711,16 @@ button.platform-badge {
 button.platform-badge:hover { filter: brightness(1.15); }
 button.platform-badge:active { transform: scale(.97); }
 
+/* Upload dropzone's drag-over feedback — a plain border-color flip reads
+   as inert; a slow pulse on the box-shadow around the same border tells a
+   dragging cursor "yes, right here" without changing layout or color
+   value (that'd fight the inline dragOver border-color above it). */
+@keyframes rgpt-dropzone-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 0%, transparent); }
+}
+.upload-dropzone-active { animation: rgpt-dropzone-pulse 1.1s ease-in-out infinite; }
+
 /* Onboarding's live preview panel — a nice-to-have, not information
    needed to complete the form, so it's the first thing dropped once the
    viewport can't comfortably fit both panels side by side. */

@@ -36,6 +36,18 @@ function FlowWidget({ orderCount, chunkCount }) {
   );
 }
 
+// Derived purely from last_synced_date — no separate "health" concept on
+// the backend, just a read of the same staleness a human would eyeball
+// from the date themselves. 1 day covers the normal "synced yesterday,
+// haven't opened the app yet today" case without flagging it as stale.
+function _syncHealth(lastSyncedDate) {
+  if (!lastSyncedDate) return { dot: "status-dot-red", label: "Never synced" };
+  const days = Math.floor((Date.now() - new Date(`${lastSyncedDate}T00:00:00Z`).getTime()) / 86400000);
+  if (days <= 1) return { dot: "status-dot-green", label: "Up to date" };
+  if (days <= 3) return { dot: "status-dot-amber", label: `${days}d stale` };
+  return { dot: "status-dot-red", label: `${days}d stale` };
+}
+
 // Stage: Live Feed data source — a daily pull instead of a one-off upload.
 // Defaults to this backend's own built-in synthetic demo feed (see
 // docs/live-feed-data-source.md) so it works with zero configuration;
@@ -67,7 +79,18 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
         <div className="wrap-header-row-main">
           <Icon name="bolt" size={22} style={{ color: "var(--color-accent)", flex: "none" }} />
           <div style={{ minWidth: 0 }}>
-            <div className="card-title">Live Feed</div>
+            <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              Live Feed
+              {!usingUnconfiguredDemoFeed && (() => {
+                const health = _syncHealth(liveFeed.last_synced_date);
+                return (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <span className={`status-dot ${health.dot}`} />
+                    <span className="dim" style={{ fontSize: 11, fontWeight: 400 }}>{health.label}</span>
+                  </span>
+                );
+              })()}
+            </div>
             <div className="dim" style={{ fontSize: 12 }}>
               {usingUnconfiguredDemoFeed
                 ? "No feed source configured yet"
@@ -123,10 +146,32 @@ function LiveFeedCard({ liveFeed, onSync, syncing, syncResult, syncError, onSave
 
       {backfillError && <div className="tag tag-danger" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px" }}>{backfillError}</div>}
       {backfillResult && !backfillError && (
-        <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", gap: 5 }}>
-          <Icon name="check" size={10} />
-          {`Imported ${backfillResult.total_new_orders} new order${backfillResult.total_new_orders === 1 ? "" : "s"} across ${backfillResult.days_requested} days`}
-        </div>
+        <>
+          <div className="tag tag-accent" style={{ whiteSpace: "normal", height: "auto", padding: "6px 10px", gap: 5 }}>
+            <Icon name="check" size={10} />
+            {`Imported ${backfillResult.total_new_orders} new order${backfillResult.total_new_orders === 1 ? "" : "s"} across ${backfillResult.days_requested} days`}
+          </div>
+          {backfillResult.per_day?.length > 0 && (
+            <div
+              className="mono"
+              style={{
+                fontSize: 11, maxHeight: 140, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2,
+                background: "var(--color-bg)", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-sm)", padding: 8,
+              }}
+            >
+              {backfillResult.per_day.map((d) => (
+                <div key={d.date} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <span className="dim">{d.date}</span>
+                  {d.error ? (
+                    <span style={{ color: "var(--color-danger)" }}>{d.error}</span>
+                  ) : (
+                    <span>{d.new_orders} new</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <p className="dim" style={{ fontSize: 11, margin: 0 }}>
