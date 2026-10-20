@@ -109,8 +109,16 @@ async function request(path, options = {}) {
 
 export const onboardingApi = {
   me: () => request("/onboarding/me"),
-  createRestaurant: (name) =>
-    request("/onboarding/restaurant", { method: "POST", body: JSON.stringify({ name }) }),
+  // aggregatorPlatform matches a field the backend has always accepted
+  // (CreateRestaurantIn.aggregator_platform, default "multi") but the
+  // frontend never sent — onboarding silently left every restaurant on
+  // the default instead of letting the operator say which platform(s)
+  // they actually use.
+  createRestaurant: (name, aggregatorPlatform) =>
+    request("/onboarding/restaurant", {
+      method: "POST",
+      body: JSON.stringify(aggregatorPlatform ? { name, aggregator_platform: aggregatorPlatform } : { name }),
+    }),
 };
 
 export const settingsApi = {

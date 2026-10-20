@@ -698,6 +698,27 @@ a { color: inherit; text-decoration: none; }
   color: var(--color-text-dim);
 }
 
+/* A <button> rendered with platform-badge-* styling (Onboarding's platform
+   picker) needs the usual button-reset on top — the badge classes set
+   background/border/color, but not the browser's default button font/
+   cursor/outline, which would otherwise look subtly off next to the same
+   badges rendered as plain <span>s elsewhere (order rows, the preview card). */
+button.platform-badge {
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter .12s ease, transform .08s ease;
+}
+button.platform-badge:hover { filter: brightness(1.15); }
+button.platform-badge:active { transform: scale(.97); }
+
+/* Onboarding's live preview panel — a nice-to-have, not information
+   needed to complete the form, so it's the first thing dropped once the
+   viewport can't comfortably fit both panels side by side. */
+.onboarding-preview-panel { display: block; }
+@media (max-width: 860px) {
+  .onboarding-preview-panel { display: none; }
+}
+
 /* ── Live Ops Status Strip ───────────────────────────────────────────── */
 .live-ops-strip {
   background: rgba(18, 22, 34, 0.75);
