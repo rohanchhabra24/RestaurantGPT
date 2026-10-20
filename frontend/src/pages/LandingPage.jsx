@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../components/ui/button.jsx";
 import { Card } from "../components/ui/card.jsx";
 import { Badge } from "../components/ui/badge.jsx";
@@ -14,29 +15,108 @@ import BookDemoDialog from "../components/BookDemoDialog.jsx";
 
 const INTEGRATIONS = ["Swiggy", "Zomato", "Petpooja", "Dunzo", "Your own POS"];
 
+// The hero mockup's canned Q&A pairs — still purely decorative marketing
+// content (no real backend call, same as before), but now picked by the
+// visitor via the chips below it instead of only auto-looping through one
+// hardcoded example. Each pair mirrors a real, shipped capability (weather
+// cross-referencing, compensation drafting, policy citation) rather than
+// inventing something the product doesn't actually do.
+const DEMO_EXAMPLES = [
+  {
+    question: "Which Zone 3 cancellations qualify for refunds?",
+    answer: "6 orders qualify — ₹2,730 total, delayed past SLA due to rain.",
+    citations: ["Order #4021", "Policy §4.2"],
+  },
+  {
+    question: "Why did deliveries slow down this week?",
+    answer: "Zone 5 delivery times rose 18% vs. baseline — correlated with rain on 3 of the 5 slowest days.",
+    citations: ["Order #3912", "Weather check"],
+  },
+  {
+    question: "Do I owe any compensation right now?",
+    answer: "3 claims drafted — ₹960 total, courier no-shows and late restaurant prep.",
+    citations: ["Claim #19", "Policy §2.1"],
+  },
+];
+
+const FEATURE_GRID = [
+  {
+    icon: "db",
+    title: "Multi-agent order investigation",
+    body: "When something looks off, RestaurantGPT doesn't just restate your data — it independently cross-checks historical weather against the exact dates your slowest orders happened on, not just a self-reported flag.",
+  },
+  {
+    icon: "bolt",
+    title: "1-click compensation claims",
+    body: "Sweep your recent orders against your own policy's thresholds and draft every eligible claim at once, with the clause and order ID behind each one — not a black-box number.",
+  },
+  {
+    icon: "route",
+    title: "Live feed + CSV import",
+    body: "Pull yesterday's orders automatically from your aggregator's export API every day, or upload a CSV from Swiggy, Zomato, Petpooja, Dunzo or your own POS — same pipeline either way.",
+  },
+  {
+    icon: "file",
+    title: "Policy-grounded answers",
+    body: "Every answer is checked against your actual uploaded policy documents and cites the specific clause — if it can't verify something, it says so instead of guessing.",
+  },
+];
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const [demoDialog, setDemoDialog] = useState(null); // null | "message" | "call"
+  const [activeExample, setActiveExample] = useState(0);
+  const [userPicked, setUserPicked] = useState(false);
 
   function getStarted() {
     navigate("/login?mode=signup");
   }
 
+  // Auto-rotates through the canned examples so a visitor who never
+  // touches the chips still sees the "AI answering different questions"
+  // effect the old single-example CSS loop gave — stops the moment
+  // someone manually picks one, so a deliberate choice doesn't get
+  // yanked away by the timer a few seconds later.
+  useEffect(() => {
+    if (userPicked) return;
+    const id = setInterval(() => setActiveExample((i) => (i + 1) % DEMO_EXAMPLES.length), 4200);
+    return () => clearInterval(id);
+  }, [userPicked]);
+
+  const demo = DEMO_EXAMPLES[activeExample];
+
   return (
-    <div
-      className="min-h-screen overflow-x-hidden text-foreground font-sans"
-      style={{
-        background:
-          "radial-gradient(1100px 640px at 84% -140px, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), " +
-          "radial-gradient(1000px 700px at -8% 100%, color-mix(in srgb, black 28%, transparent), transparent 55%), var(--color-bg)",
-      }}
-    >
-      <nav className="flex items-center gap-4 px-5 py-5 sm:px-10 lg:px-[72px]">
+    <div className="min-h-screen text-foreground font-sans">
+      {/* Sticky nav lives outside the overflow-x-hidden content wrapper
+          below on purpose — a non-"visible" overflow-x on an ancestor
+          computes overflow-y to "auto" too (CSS overflow's same-axis
+          promotion rule), which silently breaks position:sticky for any
+          descendant, since sticky positions against the nearest scrolling
+          ancestor rather than the viewport. Keeping nav a sibling instead
+          of a child of that wrapper sidesteps the quirk entirely. */}
+      <nav
+        className="sticky top-0 z-50 flex items-center gap-4 px-5 py-4 sm:px-10 lg:px-[72px]"
+        style={{
+          background: "color-mix(in srgb, var(--color-bg) 78%, transparent)",
+          backdropFilter: "blur(18px) saturate(160%)",
+          WebkitBackdropFilter: "blur(18px) saturate(160%)",
+          borderBottom: "1px solid var(--color-divider)",
+        }}
+      >
         <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
           <img src="/logo.png" alt="RestaurantGPT" className="h-6 w-auto flex-none object-contain" />
         </span>
         <Button onClick={getStarted}>Get started</Button>
       </nav>
+
+      <div
+        className="overflow-x-hidden"
+        style={{
+          background:
+            "radial-gradient(1100px 640px at 84% -140px, color-mix(in srgb, var(--color-accent-900) 70%, transparent), transparent 60%), " +
+            "radial-gradient(1000px 700px at -8% 100%, color-mix(in srgb, black 28%, transparent), transparent 55%), var(--color-bg)",
+        }}
+      >
 
       <div className="mx-auto max-w-[1200px] px-5 pb-14 sm:px-10 lg:px-[72px]">
         <section className="grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))]">
@@ -59,6 +139,29 @@ export default function LandingPage() {
               <Button onClick={getStarted}>Get started</Button>
               <Button variant="ghost" onClick={() => setDemoDialog("message")}>Book a demo</Button>
             </div>
+
+            <div className="mt-7 flex flex-col gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[.06em] text-[var(--color-neutral-500)]">
+                Try a sample question
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_EXAMPLES.map((ex, i) => (
+                  <button
+                    key={ex.question}
+                    type="button"
+                    onClick={() => { setActiveExample(i); setUserPicked(true); }}
+                    className="rounded-pill border px-3 py-1.5 text-left text-xs transition-colors"
+                    style={{
+                      borderColor: i === activeExample ? "var(--color-accent)" : "var(--color-divider)",
+                      background: i === activeExample ? "color-mix(in srgb, var(--color-accent) 14%, transparent)" : "transparent",
+                      color: i === activeExample ? "var(--color-accent-200)" : "var(--color-neutral-400)",
+                    }}
+                  >
+                    {ex.question}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="relative w-full min-w-0 sm:min-w-[340px]">
@@ -66,7 +169,7 @@ export default function LandingPage() {
               className="pointer-events-none absolute -inset-9 rounded-3xl opacity-55 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
               style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}
             />
-            <Card className="relative flex flex-col gap-3.5 p-5 pb-6">
+            <Card className="relative flex flex-col gap-3.5 p-5 pb-6 overflow-hidden">
               <div className="flex items-center gap-2">
                 <img src="/logo.png" alt="RestaurantGPT" className="h-[15px] w-auto flex-none object-contain" />
                 <Badge className="ml-auto">
@@ -75,25 +178,52 @@ export default function LandingPage() {
                 </Badge>
               </div>
               <div className="h-px bg-border" />
-              <div className="self-end max-w-[96%] rounded-[12px_12px_2px_12px] bg-[var(--color-neutral-800)] px-3.5 py-2.5 [animation:rgpt-bubble_9s_ease-in-out_infinite]">
-                <span className="inline-block overflow-hidden whitespace-nowrap align-bottom text-sm [animation:rgpt-type_9s_steps(47)_infinite]">
-                  Which Zone 3 cancellations qualify for refunds?
-                </span>
-                <span className="ml-0.5 inline-block h-3.5 w-0.5 align-middle bg-foreground [animation:rgpt-caret_.8s_steps(1)_infinite]" />
-              </div>
-              <Card className="self-start max-w-[96%] p-4 shadow-md [animation:rgpt-answer_9s_ease-in-out_infinite]">
-                <div className="flex items-center gap-1.5 text-xs uppercase tracking-[.06em] text-muted-foreground">
-                  <Icon name="check" size={11} />Verified
-                </div>
-                <p className="m-0 mt-1.5 text-[12.5px] text-muted-foreground">
-                  6 orders qualify — ₹2,730 total, delayed past SLA due to rain.
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className="font-mono">Order #4021</Badge>
-                  <Badge variant="outline" className="font-mono">Policy §4.2</Badge>
-                </div>
-              </Card>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeExample}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="flex flex-col gap-3.5"
+                >
+                  <div className="self-end max-w-[96%] rounded-[12px_12px_2px_12px] bg-[var(--color-neutral-800)] px-3.5 py-2.5 text-sm">
+                    {demo.question}
+                  </div>
+                  <Card className="self-start max-w-[96%] p-4 shadow-md">
+                    <div className="flex items-center gap-1.5 text-xs uppercase tracking-[.06em] text-muted-foreground">
+                      <Icon name="check" size={11} />Verified
+                    </div>
+                    <p className="m-0 mt-1.5 text-[12.5px] text-muted-foreground">{demo.answer}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {demo.citations.map((c) => (
+                        <Badge key={c} variant="outline" className="font-mono">{c}</Badge>
+                      ))}
+                    </div>
+                  </Card>
+                </motion.div>
+              </AnimatePresence>
             </Card>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-6 py-9">
+          <div className="flex items-center gap-2.5">
+            <span className="h-px w-8 flex-none bg-primary" />
+            <span className="font-heading text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-neutral-500)]">
+              What it actually does
+            </span>
+          </div>
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
+            {FEATURE_GRID.map((f) => (
+              <Card key={f.title} className="flex flex-col gap-2.5 p-5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--color-accent-800)" }}>
+                  <Icon name={f.icon} size={16} style={{ color: "var(--color-accent-200)" }} />
+                </span>
+                <div className="font-heading text-[14.5px] font-semibold tracking-[-0.015em]">{f.title}</div>
+                <p className="m-0 text-[12.5px] leading-relaxed text-muted-foreground">{f.body}</p>
+              </Card>
+            ))}
           </div>
         </section>
 
@@ -138,6 +268,7 @@ export default function LandingPage() {
             </Button>
           </div>
         </section>
+      </div>
       </div>
 
       <BookDemoDialog
