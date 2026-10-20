@@ -84,13 +84,15 @@ async function request(path, options = {}) {
       }
 
       let userMessage = "Something went wrong on our end. Please try again.";
-      if (res.status < 500) {
+      if (res.status === 502 || res.status === 504) {
+        userMessage = "Backend service is unreachable. Please ensure the backend server is running.";
+      } else {
         try {
           const parsed = JSON.parse(text);
           if (typeof parsed.detail === "string") userMessage = parsed.detail;
-          else userMessage = "Please check your inputs and try again.";
+          else if (res.status < 500) userMessage = "Please check your inputs and try again.";
         } catch (e) {
-          userMessage = "Please check your inputs and try again.";
+          if (res.status < 500) userMessage = "Please check your inputs and try again.";
         }
       }
       throw new Error(userMessage);
