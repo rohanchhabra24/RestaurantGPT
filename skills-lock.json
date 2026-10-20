@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "brag": {
+      "source": "latent-spaces/brag",
+      "sourceType": "github",
+      "skillPath": "skills/brag/SKILL.md",
+      "computedHash": "bfa006908e7389adc592000980b99638f4db108286679ccd454a2d378709790b"
+    },
+    "video-shotcraft": {
+      "source": "Vincentwei1021/video-shotcraft",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "7675d6f3b5b033fe0a8d77766de972a266306e026c68aa9aeec223da66e3f27e"
+    }
+  }
+}
