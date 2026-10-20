@@ -47,8 +47,13 @@ function InvestigationTrace({ steps }) {
     <div
       style={{
         borderRadius: 8,
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        background: "rgba(255, 255, 255, 0.02)",
+        // var(--lum-border)/--lum-bg (theme.css) instead of the flat
+        // rgba(255,255,255,...) border this used to have — that hardcoded
+        // white-on-transparent combination only ever made sense in dark
+        // mode; these vars are theme-aware, so light mode now gets a real
+        // visible panel too instead of a near-invisible one.
+        border: "var(--lum-border)",
+        background: "var(--lum-bg)",
         overflow: "hidden",
         fontSize: 13,
       }}

@@ -798,10 +798,12 @@ button.platform-badge:active { transform: scale(.97); }
 
 /* ── Live Ops Status Strip ───────────────────────────────────────────── */
 .live-ops-strip {
-  background: rgba(18, 22, 34, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Matches .card's luminous-border treatment now (was a translucent
+     blurred glass panel) — the approved redesign shows this strip as an
+     opaque card like everything else on the Dashboard, not a distinct
+     floating-glass material. */
+  background: var(--lum-bg);
+  border: var(--lum-border);
   border-radius: var(--radius-md);
   padding: 10px 16px;
   display: flex;
