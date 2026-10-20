@@ -39,6 +39,16 @@ const DEMO_EXAMPLES = [
   },
 ];
 
+// Deliberately statements, not fabricated outcome numbers — a landing
+// page reaches people who haven't logged in and have no restaurant
+// context, so there's no real metric to show here. These are promises
+// the product can actually keep, not a claim that could be false.
+const CAPABILITY_STRIP = [
+  "Every answer traces back to an order ID or policy clause — never a guess.",
+  "If it can't verify something, it says so — instead of making something up.",
+  "Works with Swiggy, Zomato, Petpooja, Dunzo or your own POS — no fixed template.",
+];
+
 const FEATURE_GRID = [
   {
     icon: "db",
@@ -62,14 +72,32 @@ const FEATURE_GRID = [
   },
 ];
 
+// Inline (not a className) so it always wins over the shadcn Card's own
+// Tailwind border/background utilities regardless of stylesheet load
+// order — see theme.css's --lum-border/--lum-bg comment. The variables
+// themselves flip to a flat border in light mode, so this one object
+// works correctly in both themes without any conditional logic here.
+const LUM_CARD_STYLE = { border: "var(--lum-border)", background: "var(--lum-bg)" };
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const [demoDialog, setDemoDialog] = useState(null); // null | "message" | "call"
   const [activeExample, setActiveExample] = useState(0);
   const [userPicked, setUserPicked] = useState(false);
+  // Cursor-tracked ambient glow behind the hero — purely decorative, same
+  // "marketing content, not real data" register as the demo card itself.
+  const [spot, setSpot] = useState({ x: 50, y: 30 });
 
   function getStarted() {
     navigate("/login?mode=signup");
+  }
+
+  function handleHeroMove(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setSpot({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    });
   }
 
   // Auto-rotates through the canned examples so a visitor who never
@@ -94,20 +122,23 @@ export default function LandingPage() {
           descendant, since sticky positions against the nearest scrolling
           ancestor rather than the viewport. Keeping nav a sibling instead
           of a child of that wrapper sidesteps the quirk entirely. */}
-      <nav
-        className="sticky top-0 z-50 flex items-center gap-4 px-5 py-4 sm:px-10 lg:px-[72px]"
-        style={{
-          background: "color-mix(in srgb, var(--color-bg) 78%, transparent)",
-          backdropFilter: "blur(18px) saturate(160%)",
-          WebkitBackdropFilter: "blur(18px) saturate(160%)",
-          borderBottom: "1px solid var(--color-divider)",
-        }}
-      >
-        <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
-          <img src="/logo.png" alt="RestaurantGPT" className="h-6 w-auto flex-none object-contain" />
-        </span>
-        <Button onClick={getStarted}>Get started</Button>
-      </nav>
+      <div className="sticky top-4 z-50 flex justify-center px-5">
+        <nav
+          className="flex w-full max-w-[1100px] items-center gap-4 rounded-pill px-5 py-2.5"
+          style={{
+            background: "color-mix(in srgb, var(--color-bg) 72%, transparent)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+            border: "1px solid var(--color-divider)",
+            boxShadow: "0 10px 34px -12px rgba(0, 0, 0, 0.55)",
+          }}
+        >
+          <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
+            <img src="/logo.png" alt="RestaurantGPT" className="h-6 w-auto flex-none object-contain" />
+          </span>
+          <Button onClick={getStarted}>Get started</Button>
+        </nav>
+      </div>
 
       <div
         className="overflow-x-hidden"
@@ -119,8 +150,18 @@ export default function LandingPage() {
       >
 
       <div className="mx-auto max-w-[1200px] px-5 pb-14 sm:px-10 lg:px-[72px]">
-        <section className="grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))]">
-          <div className="flex max-w-[560px] flex-col">
+        <section
+          onMouseMove={handleHeroMove}
+          className="relative grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))]"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-20"
+            style={{
+              background: `radial-gradient(640px circle at ${spot.x}% ${spot.y}%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 62%)`,
+            }}
+          />
+          <div className="relative flex max-w-[560px] flex-col">
             <div className="mb-5 flex items-center gap-2.5">
               <span className="h-px w-8 flex-none bg-primary" />
               <span className="font-heading text-xs font-semibold uppercase tracking-[.08em] text-primary">
@@ -128,8 +169,8 @@ export default function LandingPage() {
               </span>
             </div>
             <h1 className="m-0 font-heading text-[clamp(34px,4.4vw,54px)] font-medium leading-[1.12] tracking-[-0.015em]">
-              <span className="block">Every late order has a reason.</span>
-              <span className="block">Now you can prove it.</span>
+              <span className="reveal-line"><span style={{ "--delay": "0.05s" }}>Every late order has a reason.</span></span>
+              <span className="reveal-line"><span style={{ "--delay": "0.17s" }}>Now you can prove it.</span></span>
             </h1>
             <p className="mt-5 max-w-[52ch] text-base leading-relaxed text-[color-mix(in_srgb,var(--color-text)_78%,transparent)]">
               RestaurantGPT reads your order data and delivery policies together. Ask what happened, and get an answer
@@ -169,7 +210,7 @@ export default function LandingPage() {
               className="pointer-events-none absolute -inset-9 rounded-3xl opacity-55 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
               style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}
             />
-            <Card className="relative flex flex-col gap-3.5 p-5 pb-6 overflow-hidden">
+            <Card className="relative flex flex-col gap-3.5 p-5 pb-6 overflow-hidden" style={LUM_CARD_STYLE}>
               <div className="flex items-center gap-2">
                 <img src="/logo.png" alt="RestaurantGPT" className="h-[15px] w-auto flex-none object-contain" />
                 <Badge className="ml-auto">
@@ -190,7 +231,7 @@ export default function LandingPage() {
                   <div className="self-end max-w-[96%] rounded-[12px_12px_2px_12px] bg-[var(--color-neutral-800)] px-3.5 py-2.5 text-sm">
                     {demo.question}
                   </div>
-                  <Card className="self-start max-w-[96%] p-4 shadow-md">
+                  <Card className="self-start max-w-[96%] p-4 shadow-md" style={LUM_CARD_STYLE}>
                     <div className="flex items-center gap-1.5 text-xs uppercase tracking-[.06em] text-muted-foreground">
                       <Icon name="check" size={11} />Verified
                     </div>
@@ -207,6 +248,22 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Capability statements, not outcome numbers — a visitor here
+            hasn't logged in and has no restaurant context, so there's no
+            real metric to compute yet. These three lines are promises the
+            product can actually keep rather than a claim that could be
+            false (see CAPABILITY_STRIP's own comment above). */}
+        <section className="py-2 pb-9">
+          <Card className="flex flex-wrap items-center justify-between gap-7 px-9 py-6" style={LUM_CARD_STYLE}>
+            {CAPABILITY_STRIP.map((c) => (
+              <div key={c} className="flex max-w-[300px] items-start gap-2.5">
+                <Icon name="check" size={15} className="mt-0.5 flex-none" style={{ color: "var(--color-accent-200)" }} />
+                <span className="text-sm leading-relaxed">{c}</span>
+              </div>
+            ))}
+          </Card>
+        </section>
+
         <section className="flex flex-col gap-6 py-9">
           <div className="flex items-center gap-2.5">
             <span className="h-px w-8 flex-none bg-primary" />
@@ -216,7 +273,7 @@ export default function LandingPage() {
           </div>
           <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))]">
             {FEATURE_GRID.map((f) => (
-              <Card key={f.title} className="flex flex-col gap-2.5 p-5">
+              <Card key={f.title} className="flex flex-col gap-2.5 p-5" style={LUM_CARD_STYLE}>
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--color-accent-800)" }}>
                   <Icon name={f.icon} size={16} style={{ color: "var(--color-accent-200)" }} />
                 </span>
