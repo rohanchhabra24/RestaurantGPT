@@ -184,8 +184,16 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
             rid,
         )
 
+        # Falling back to the dataset's latest active day instead of the
+        # real calendar "today" is demo furniture — it exists so the one
+        # designated demo restaurant's Dashboard never looks dead just
+        # because its seed data has a fixed past date, same reasoning as
+        # live_feed_sync.py's _is_demo_restaurant guard. Applied to every
+        # restaurant, it would silently show a real, quiet-today operator
+        # yesterday's (or older) numbers mislabeled as "today" — this KPI
+        # endpoint has no field announcing that happened.
         latest_day = None
-        if not today or today["orders_today"] == 0:
+        if (not today or today["orders_today"] == 0) and restaurant_id == settings.demo_restaurant_id:
             latest_day = await conn.fetchval(
                 "select date_trunc('day', max(placed_at)) from orders where restaurant_id = $1",
                 rid,

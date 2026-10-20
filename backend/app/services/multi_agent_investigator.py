@@ -172,16 +172,24 @@ async def investigate(question: str, restaurant_id: str, slots: dict) -> Investi
                                   baseline_avg_delivery_s=None, delta_pct=None, likely_driver=None)
 
     async with pool.acquire() as conn:
-        latest_order_time = await conn.fetchval(
-            "select max(placed_at) from orders where restaurant_id = $1",
-            rid,
-        )
         now_utc = datetime.now(timezone.utc)
-        # If the newest order is older than 2 days, dynamically anchor to the dataset's latest activity
-        if latest_order_time and (now_utc - latest_order_time).total_seconds() > 2 * 86400:
-            ref_time = latest_order_time
-        else:
-            ref_time = now_utc
+        ref_time = now_utc
+        # Anchoring "now" to the dataset's latest activity instead of the
+        # real clock is demo furniture — it exists so the one designated
+        # demo restaurant's trend/weather analysis keeps reasoning about
+        # its own fixed-date seed data as if it were current, the same
+        # reasoning as live_feed_sync.py's _is_demo_restaurant guard.
+        # Applied to every restaurant, a real tenant with a genuinely
+        # quiet recent window (a slow week, a new signup) would have
+        # Chat's diagnostics silently reason about a stale window as if
+        # it were "recent", with nothing in the answer saying so.
+        if restaurant_id == settings.demo_restaurant_id:
+            latest_order_time = await conn.fetchval(
+                "select max(placed_at) from orders where restaurant_id = $1",
+                rid,
+            )
+            if latest_order_time and (now_utc - latest_order_time).total_seconds() > 2 * 86400:
+                ref_time = latest_order_time
 
         zone = await _pick_target_zone(conn, rid, slots.get("zone"), ref_time)
         result.target_zone = zone
