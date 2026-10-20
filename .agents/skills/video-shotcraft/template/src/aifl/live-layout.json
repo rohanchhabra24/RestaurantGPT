@@ -15,7 +15,7 @@
     "y": 247,
     "w": 357.328125,
     "h": 288,
-    "title": "Self-healing CI triage router"
+    "title": "Andheri West"
    },
    {
     "file": "card2.png",
@@ -23,7 +23,7 @@
     "y": 247,
     "w": 357.328125,
     "h": 288,
-    "title": "Screenshot-grounded retrieval agents"
+    "title": "Powai"
    },
    {
     "file": "card3.png",
@@ -31,7 +31,7 @@
     "y": 616,
     "w": 357.328125,
     "h": 312,
-    "title": "On-device continual tuning PoC"
+    "title": "Indiranagar"
    },
    {
     "file": "card4.png",
@@ -39,7 +39,7 @@
     "y": 616,
     "w": 357.328125,
     "h": 312,
-    "title": "Confidence-routed model cascade"
+    "title": "Koramangala — Zone 3"
    },
    {
     "file": "card5.png",
@@ -47,7 +47,7 @@
     "y": 616,
     "w": 357.34375,
     "h": 312,
-    "title": "Tabular foundation probes"
+    "title": "Whitefield"
    },
    {
     "file": "card6.png",
@@ -55,7 +55,7 @@
     "y": 1009,
     "w": 357.328125,
     "h": 312,
-    "title": "Sensor drift early-warning"
+    "title": "HSR Layout"
    },
    {
     "file": "card7.png",
@@ -63,7 +63,7 @@
     "y": 1009,
     "w": 357.328125,
     "h": 312,
-    "title": "Dialect-robust speech recognition"
+    "title": "Salt Lake"
    },
    {
     "file": "card8.png",
@@ -71,7 +71,7 @@
     "y": 1009,
     "w": 357.34375,
     "h": 312,
-    "title": "Warehouse re-ID robustness"
+    "title": "Sector 62"
    },
    {
     "file": "card9.png",
@@ -79,7 +79,7 @@
     "y": 1402,
     "w": 357.328125,
     "h": 312,
-    "title": "nano-lab: automated research loop"
+    "title": "Banjara Hills"
    },
    {
     "file": "card10.png",
@@ -87,40 +87,40 @@
     "y": 1402,
     "w": 357.328125,
     "h": 312,
-    "title": "Long-horizon coding arena"
+    "title": "Viman Nagar"
    }
   ],
   "sections": [
    {
-    "text": "全部项目",
+    "text": "All outlets",
     "x": 408,
     "y": 93,
     "w": 51.84375,
     "h": 16
    },
    {
-    "text": "Agents & Dev Tools",
+    "text": "Flagged this week",
     "x": 408,
     "y": 206,
     "w": 149.5625,
     "h": 16
    },
    {
-    "text": "Efficient Models",
+    "text": "Up to date",
     "x": 408,
     "y": 575,
     "w": 130.046875,
     "h": 16
    },
    {
-    "text": "Perception & Sensing",
+    "text": "South outlets",
     "x": 408,
     "y": 968,
     "w": 163.953125,
     "h": 16
    },
    {
-    "text": "Research Infra",
+    "text": "East outlets",
     "x": 408,
     "y": 1361,
     "w": 116.84375,

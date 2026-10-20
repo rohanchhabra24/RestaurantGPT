@@ -70,7 +70,7 @@ const grid = [
   }));
 
 // ---- the search target: nano-lab slides up to the first-row slot on filter ----
-const nanoIdx = grid.findIndex((c) => c.title.includes('nano-lab'));
+const nanoIdx = grid.findIndex((c) => c.title.includes('Koramangala'));
 const nano = grid[nanoIdx];
 const NANO_TO = { x: 408, y: 247 }; // first-row slot the filtered card slides into
 const CLICK_C = { x: 586, y: 391 }; // click point on the settled result card
@@ -86,7 +86,7 @@ const SEARCH = { x: 408, y: 130, w: 1016, h: 44 };
 /** Context-level defaults, editable per clip in the workbench. `query` is only the
  * typed text; the card that survives the filter is still the nano-lab card from layout. */
 export const SCENE_FLYIN_DEFAULTS = {
-  query: 'nano-lab',
+  query: 'koramangala',
   accent: '#ae6700', // oklch(58% 0.13 65)
 };
 type SceneFlyInProps = Partial<typeof SCENE_FLYIN_DEFAULTS>;

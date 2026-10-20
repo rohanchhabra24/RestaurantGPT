@@ -67,7 +67,7 @@ const DUST = Array.from({ length: 20 }, (_, i) => ({
 
 /** Sign-off reworked as a "group photo": core elements from every page fly in
  * from off-screen in staggered beats and settle in an arc around the center;
- * then the letterpressed "AI Foundation Lab" wordmark appears while the assembled
+ * then the letterpressed wordmark appears while the assembled
  * elements recede slightly into the background — teammates in the back row.
  * Launch-event treatment: a crane-in camera on the whole photo layer, ghost
  * trails + landing glows on the fly-ins, a stage light behind the wordmark,

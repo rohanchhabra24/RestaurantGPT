@@ -10,7 +10,7 @@ import layout from '../live-layout.json';
 export const SCENE_OPEN_DEFAULTS = {
   wordmark: 'RestaurantGPT',
   wordmarkSize: 132,
-  kicker: 'OPERATIONS INTELLIGENCE & SLA FORENSICS',
+  kicker: "CATCH WHAT YOU'RE OWED. AUTOMATICALLY.",
   kickerSize: 22,
   noteLine1: 'Every late order,',
   noteLine2: 'now proven.',
@@ -51,8 +51,8 @@ const PUSH_EASE = Easing.bezier(0.35, 0, 0.2, 1);
 const POP_EASE = Easing.bezier(0.2, 1.25, 0.3, 1); // spring with overshoot
 const RESEAT_EASE = Easing.bezier(0.4, 0, 0.3, 1.05); // compress on touchdown
 
-/** Brand open (0–83): an invisible pen draws an amber crosshair, "AI
- * Foundation Lab" letterpresses in glyph by glyph (all glyphs down by ~46), a mono kicker
+/** Brand open (0–83): an invisible pen draws an amber crosshair, the
+ * wordmark letterpresses in glyph by glyph (all glyphs down by ~46), a mono kicker
  * types itself out, then the finished lockup RESTS fully-on for a second
  * (46–76) before dissolving and handing to the console.
  *

@@ -31,9 +31,9 @@ export const AIFL_TOTAL = 1085;
 // source for the render below and for the workbench manifest (workbench.ts).
 export const TITLE_CARDS = {
   card1: { text: 'Every late order has a *reason.* Now you can prove it.' },
-  card2: { text: 'Multi-Agent *Forensics,* cross-referencing weather & SLA telemetry.', sub: 'orders audited this month', subDigits: '28' },
-  cardWbr: { text: '₹14,200 *Recoverable,* automatically drafted for dispute.' },
-  card3: { text: 'Stop guessing. Start *recovering.*' },
+  card2: { text: 'No guessing. Just *proof* — the order ID, the clause, the amount.', sub: 'flagged this week', subDigits: '6' },
+  cardWbr: { text: '₹2,730 *recoverable,* drafted automatically for your review.' },
+  card3: { text: 'Every outlet. Every order. One place to *check.*' },
 } as const;
 
 export const parseWords = (text: string): { text: string; accent?: boolean }[] =>
@@ -55,13 +55,13 @@ export const sfxDuration = (s: { from: number; src: string }) =>
 
 // bottom-strip narration over the live shots (absolute frames; outro stays clean)
 export const CAPTIONS = [
-  { from: 90, duration: 40, text: 'SWIGGY & ZOMATO TELEMETRY · LIVE DISPUTE AUDIT' },
+  { from: 90, duration: 40, text: "EVERY DELIVERY APP YOU USE, WATCHED AUTOMATICALLY" },
   // (the hero-card hover annotation lives inside SceneOpen as a 3D floating note)
-  { from: 318, duration: 44, text: 'REAL-TIME RAIN & WEATHER EXCLUSION CHECK' },
-  { from: 395, duration: 55, text: 'CROSS-CORRELATE · VERIFY · PROVE' },
-  { from: 477, duration: 68, text: 'EVERY LATE ORDER, BACKED BY TELEMETRY & CLAUSES' },
-  { from: 633, duration: 72, text: 'RESTAURANTGPT · 1-CLICK DISPUTE AUTOMATION' },
-  { from: 789, duration: 78, text: 'AUDIT ONCE · RECOVER THOUSANDS' },
+  { from: 318, duration: 44, text: 'REAL WEATHER & DELAY CHECKS — NOT A SELF-REPORTED FLAG' },
+  { from: 395, duration: 55, text: 'CHECK · VERIFY · PROVE' },
+  { from: 477, duration: 68, text: 'EVERY LATE ORDER, BACKED BY REAL EVIDENCE' },
+  { from: 633, duration: 72, text: "ONE PLACE FOR EVERY OUTLET'S CLAIMS" },
+  { from: 789, duration: 78, text: 'CHECK ONCE. RECOVER WHAT YOU’RE OWED.' },
 ] as const;
 
 // sound design pinned to animation beats (absolute frames, Mixkit license).

@@ -1,7 +1,6 @@
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { staticFile } from 'remotion';
 import palettes from './palettes.json';
-import { paletteAsset } from './palette-assets';
 
 export type ThemeId = 'ink-press' | keyof typeof palettes;
 const font = '"Segoe UI Variable", "Segoe UI", "Microsoft YaHei", Arial, sans-serif';
@@ -31,12 +30,13 @@ export const VisualThemeProvider: FC<{theme?: string; colors?: Record<string,str
 export const useVisualTheme = () => useContext(ThemeContext);
 export const rgba = (color: string, alpha: number) =>
   `color-mix(in srgb, ${color} ${Math.max(0, Math.min(1, alpha)) * 100}%, transparent)`;
-export const themeAsset = (theme: VisualTheme, src: string) => {
-  if (src.startsWith('textures/live/') && theme.id !== 'ink-press') {
-    const asset = paletteAsset(theme, src.slice('textures/live/'.length));
-    if (!asset) throw new Error(`Missing editable texture: ${src}`);
-    return asset;
-  }
+export const themeAsset = (_theme: VisualTheme, src: string) => {
+  // The live-recolor path (paletteAsset) re-paints the template's own
+  // original stock-demo markup (fictional "AI Foundation Lab" content,
+  // Chinese labels) with the active palette's CSS variables, bypassing the
+  // captured RestaurantGPT screenshots entirely. This product's captured
+  // textures (public/textures/live/*.png) already bake the real palette in
+  // directly, so every theme uses them as-is rather than the stock markup.
   return staticFile(src);
 };
 // Roles of the original scene materials. Warm light is illumination, not an

@@ -11,8 +11,8 @@ const PAGE_H = layout.papers.pageH;
 
 /** Context-level defaults (screen-space counter copy / palette), editable per clip in the workbench. */
 export const SCENE_PAPERS_DEFAULTS = {
-  title: 'Paper Radar',
-  subtitle: 'Of 31 Fetched Today',
+  title: 'Claims',
+  subtitle: 'Flagged This Week',
   counterSize: 96,
   amber: '#955905',  // oklch(52% 0.115 65)
   muted: '#65635f',  // oklch(50% 0.006 82)
