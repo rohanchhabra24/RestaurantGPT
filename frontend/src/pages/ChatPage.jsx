@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon.jsx";
 import AnswerCard from "../components/AnswerCard.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
 import InlineConfirm from "../components/InlineConfirm.jsx";
+import PromptComposer from "../components/PromptComposer.jsx";
+import DynamicIslandTrace from "../components/DynamicIslandTrace.jsx";
 import { api } from "../api.js";
 
 const EXAMPLE_PROMPTS = [
@@ -15,13 +17,6 @@ const EXAMPLE_PROMPTS = [
   { icon: "clock", kicker: "Quick number", title: "What was our average delivery time last week?", body: "A straight lookup — no guesswork, no cross-referencing spreadsheets." },
 ];
 
-// ChatPage is unmounted every time you switch to another nav tab (Dashboard,
-// Data Sources, Issues — React Router swaps the route component out), so
-// anything kept only in local useState — which open conversation, an
-// unsent draft — was getting wiped and remounting back to the empty
-// history-list view. sessionStorage survives the unmount/remount (and a
-// reload, until the tab closes) without needing to lift this state up
-// into a provider above <Routes> just to keep it alive across a tab switch.
 const DRAFT_KEY = "rgpt-chat-draft";
 const ACTIVE_ID_KEY = "rgpt-chat-active-id";
 
@@ -29,7 +24,7 @@ function readStorage(key) {
   try {
     return sessionStorage.getItem(key) || "";
   } catch {
-    return ""; // private browsing / blocked storage — falls back to today's behavior
+    return "";
   }
 }
 
@@ -38,18 +33,27 @@ function writeStorage(key, value) {
     if (value) sessionStorage.setItem(key, value);
     else sessionStorage.removeItem(key);
   } catch {
-    // ignore — same fallback as above
+    // ignore
   }
 }
 
 export default function ChatPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const qParam = searchParams.get("q");
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveIdState] = useState(() => readStorage(ACTIVE_ID_KEY) || null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraftState] = useState(() => readStorage(DRAFT_KEY));
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (qParam && !sending) {
+      setDraft(qParam);
+      setSearchParams({}, { replace: true });
+    }
+  }, [qParam]);
 
   function setActiveId(id) {
     setActiveIdState(id);
@@ -413,29 +417,20 @@ export default function ChatPage() {
               )
             )}
             {sending && (
-              <div className="dim" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>{t("chat.sendingIndicator")}</motion.span>
-              </div>
+              <DynamicIslandTrace mode="live" />
             )}
             <div ref={threadEndRef} />
           </div>
         )}
 
-        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "16px clamp(16px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              className="input"
-              style={{ flex: 1 }}
-              placeholder={t("chat.inputPlaceholder")}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send(draft)}
-            />
-            <button type="button" className="btn btn-primary btn-icon" aria-label={t("chat.sendAria")} onClick={() => send(draft)} disabled={sending}>
-              <Icon name="send" size={15} />
-            </button>
-          </div>
-          <div className="dim" style={{ fontSize: 11 }}>{t("chat.pressEnter", { key: "⏎" })}</div>
+        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "14px clamp(16px, 4vw, 32px) 16px", background: "color-mix(in srgb, var(--color-bg) 92%, transparent)" }}>
+          <PromptComposer
+            draft={draft}
+            setDraft={setDraft}
+            onSend={(text) => send(text)}
+            sending={sending}
+            placeholder={t("chat.inputPlaceholder")}
+          />
         </div>
       </div>
 

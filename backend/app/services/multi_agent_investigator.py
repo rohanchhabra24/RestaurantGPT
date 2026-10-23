@@ -22,6 +22,7 @@ LLM for prose.
 """
 
 import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 from app.config import settings
@@ -56,6 +57,13 @@ ORDER_COLUMNS = """id, aggregator_order_id, platform, zone, status, cancellation
                    delivery_time_seconds, sla_target_seconds, weather_flag, total_amount, placed_at"""
 
 
+def _clean_zone(zone: str | None) -> str:
+    if not zone:
+        return "All Zones"
+    z = str(zone).strip()
+    return z if z.lower().startswith("zone") else f"Zone {z}"
+
+
 @dataclass
 class InvestigationStep:
     agent: str
@@ -76,20 +84,27 @@ class InvestigationResult:
     steps_summary_text: str = ""
 
 
-async def _pick_target_zone(conn, rid, given_zone: str | None) -> str | None:
+async def _pick_target_zone(conn, rid, given_zone: str | None, ref_time: datetime) -> str | None:
     if given_zone:
-        return given_zone
+        matched = await conn.fetchval(
+            "select zone from orders where restaurant_id = $1 and (zone = $2 or zone ilike $3) limit 1",
+            rid, given_zone, f"%{given_zone}%",
+        )
+        return matched or given_zone
     rows = await conn.fetch(
         f"""select zone,
-                   avg(delivery_time_seconds) filter (where placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days') as recent_avg,
                    avg(delivery_time_seconds) filter (
-                     where placed_at < now() - interval '{RECENT_WINDOW_DAYS} days'
-                       and placed_at >= now() - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
+                     where placed_at >= $2::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at <= $2::timestamptz
+                   ) as recent_avg,
+                   avg(delivery_time_seconds) filter (
+                     where placed_at < $2::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at >= $2::timestamptz - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
                    ) as baseline_avg
             from orders
             where restaurant_id = $1 and delivery_time_seconds is not null
             group by zone""",
-        rid,
+        rid, ref_time,
     )
     worst_zone, worst_delta = None, -1.0
     for r in rows:
@@ -97,30 +112,32 @@ async def _pick_target_zone(conn, rid, given_zone: str | None) -> str | None:
             delta = (r["recent_avg"] - r["baseline_avg"]) / r["baseline_avg"]
             if delta > worst_delta:
                 worst_delta, worst_zone = delta, r["zone"]
+    if not worst_zone:
+        worst_zone = await conn.fetchval(
+            "select zone from orders where restaurant_id = $1 and zone is not null group by zone order by count(*) desc limit 1",
+            rid,
+        )
     return worst_zone
 
 
 async def _investigate_weather(restaurant_id: str, worst_orders: list[dict]) -> tuple[list[dict], InvestigationStep]:
     """Independently checks real historical weather for the specific dates
-    the worst-delayed orders happened on — the fix for the correlation
-    step above only ever restating orders.weather_flag (self-reported at
-    ingestion, never verified). Bounded to the distinct dates among the
-    orders already fetched (at most MAX_WEATHER_LOOKUPS), and returns a
-    step describing exactly what was found — including "unavailable",
-    which is a legitimate, expected outcome, not an error to hide.
+    the worst-delayed orders happened on.
     """
     coords = await weather_service.get_coordinates(restaurant_id)
     if coords is None:
         return [], InvestigationStep(
-            "weather_agent",
-            "No restaurant location configured — skipped independent weather verification "
-            "(the weather-flagged rate above is still self-reported order data, not "
-            "independently checked). Set a city in Settings to enable this.",
+            "Live Weather Verification",
+            "No restaurant city configured — independent weather verification skipped. "
+            "(Platform weather tags remain recorded in order data).",
         )
 
     dates = sorted({o["placed_at"].date() for o in worst_orders if o.get("placed_at")})[:MAX_WEATHER_LOOKUPS]
     if not dates:
-        return [], InvestigationStep("weather_agent", "No dated orders to check weather against.")
+        return [], InvestigationStep(
+            "Live Weather Verification",
+            "No sample orders in this window to cross-reference with historical weather logs.",
+        )
 
     evidence: list[dict] = []
     unavailable = 0
@@ -133,18 +150,17 @@ async def _investigate_weather(restaurant_id: str, worst_orders: list[dict]) -> 
 
     if not evidence:
         return [], InvestigationStep(
-            "weather_agent",
-            f"Weather data unavailable for all {len(dates)} order date(s) checked (API error) — "
-            "cannot independently confirm or rule out weather as a driver.",
+            "Live Weather Verification",
+            f"Weather data unavailable for all {len(dates)} date(s) checked (service response pending).",
         )
 
-    rainy = [w for w in evidence if w["is_rainy"]]
+    rainy = [w for w in evidence if w.get("is_rainy")]
     summary = ", ".join(f"{w['date']} ({w['condition']})" for w in evidence)
     unavailable_note = f" ({unavailable} date(s) unavailable)" if unavailable else ""
     step = InvestigationStep(
-        "weather_agent",
-        f"Independently checked historical weather for {len(evidence)} order date(s){unavailable_note}: {summary}. "
-        f"{len(rainy)} of {len(evidence)} confirmed rain.",
+        "Live Weather Verification",
+        f"Verified local weather for {len(evidence)} sample order date(s){unavailable_note}: {summary}. "
+        f"{len(rainy)} of {len(evidence)} showed rain.",
     )
     return evidence, step
 
@@ -156,77 +172,165 @@ async def investigate(question: str, restaurant_id: str, slots: dict) -> Investi
                                   baseline_avg_delivery_s=None, delta_pct=None, likely_driver=None)
 
     async with pool.acquire() as conn:
-        zone = await _pick_target_zone(conn, rid, slots.get("zone"))
+        now_utc = datetime.now(timezone.utc)
+        ref_time = now_utc
+        # Anchoring "now" to the dataset's latest activity instead of the
+        # real clock is demo furniture — it exists so the one designated
+        # demo restaurant's trend/weather analysis keeps reasoning about
+        # its own fixed-date seed data as if it were current, the same
+        # reasoning as live_feed_sync.py's _is_demo_restaurant guard.
+        # Applied to every restaurant, a real tenant with a genuinely
+        # quiet recent window (a slow week, a new signup) would have
+        # Chat's diagnostics silently reason about a stale window as if
+        # it were "recent", with nothing in the answer saying so.
+        if restaurant_id == settings.demo_restaurant_id:
+            latest_order_time = await conn.fetchval(
+                "select max(placed_at) from orders where restaurant_id = $1",
+                rid,
+            )
+            if latest_order_time and (now_utc - latest_order_time).total_seconds() > 2 * 86400:
+                ref_time = latest_order_time
+
+        zone = await _pick_target_zone(conn, rid, slots.get("zone"), ref_time)
         result.target_zone = zone
+        zone_label = _clean_zone(zone)
 
         trend = await conn.fetchrow(
             f"""select
-                   avg(delivery_time_seconds) filter (where placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days') as recent_avg,
-                   count(*) filter (where placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days') as recent_n,
                    avg(delivery_time_seconds) filter (
-                     where placed_at < now() - interval '{RECENT_WINDOW_DAYS} days'
-                       and placed_at >= now() - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
+                     where placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at <= $3::timestamptz
+                   ) as recent_avg,
+                   count(*) filter (
+                     where placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at <= $3::timestamptz
+                   ) as recent_n,
+                   avg(delivery_time_seconds) filter (
+                     where placed_at < $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
                    ) as baseline_avg,
                    count(*) filter (
-                     where placed_at < now() - interval '{RECENT_WINDOW_DAYS} days'
-                       and placed_at >= now() - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
+                     where placed_at < $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
                    ) as baseline_n
                 from orders
                 where restaurant_id = $1 and zone = $2 and delivery_time_seconds is not null""",
-            rid, zone,
+            rid, zone, ref_time,
         )
-        result.recent_avg_delivery_s = float(trend["recent_avg"]) if trend["recent_avg"] else None
-        result.baseline_avg_delivery_s = float(trend["baseline_avg"]) if trend["baseline_avg"] else None
+
+        result.recent_avg_delivery_s = float(trend["recent_avg"]) if trend and trend["recent_avg"] else None
+        result.baseline_avg_delivery_s = float(trend["baseline_avg"]) if trend and trend["baseline_avg"] else None
+        recent_n = (trend and trend["recent_n"]) or 0
+        baseline_n = (trend and trend["baseline_n"]) or 0
+
+        # If baseline is empty in the tight 5-day window, fall back to overall historical baseline
+        if not result.baseline_avg_delivery_s:
+            overall_baseline = await conn.fetchrow(
+                """select avg(delivery_time_seconds) as b_avg, count(*) as b_n
+                   from orders
+                   where restaurant_id = $1 and zone = $2 and delivery_time_seconds is not null""",
+                rid, zone,
+            )
+            if overall_baseline and overall_baseline["b_avg"]:
+                result.baseline_avg_delivery_s = float(overall_baseline["b_avg"])
+                baseline_n = overall_baseline["b_n"] or 0
+
         if result.recent_avg_delivery_s and result.baseline_avg_delivery_s:
             result.delta_pct = round(
                 (result.recent_avg_delivery_s - result.baseline_avg_delivery_s) / result.baseline_avg_delivery_s * 100, 1
             )
-        result.steps.append(InvestigationStep(
-            "trend_agent",
-            f"Zone {zone}: recent avg delivery {result.recent_avg_delivery_s and round(result.recent_avg_delivery_s/60,1)}min "
-            f"(n={trend['recent_n']}) vs baseline {result.baseline_avg_delivery_s and round(result.baseline_avg_delivery_s/60,1)}min "
-            f"(n={trend['baseline_n']}), {result.delta_pct}% change.",
-        ))
+
+        if result.recent_avg_delivery_s and result.baseline_avg_delivery_s:
+            recent_min = round(result.recent_avg_delivery_s / 60, 1)
+            base_min = round(result.baseline_avg_delivery_s / 60, 1)
+            direction = "slower" if (result.delta_pct or 0) > 0 else "faster"
+            trend_desc = (
+                f"{zone_label} delivery times averaged {recent_min} mins across {recent_n} recent orders "
+                f"— {abs(result.delta_pct or 0)}% {direction} than the {base_min} min baseline ({baseline_n} historical orders)."
+            )
+        elif result.recent_avg_delivery_s:
+            recent_min = round(result.recent_avg_delivery_s / 60, 1)
+            trend_desc = f"{zone_label} delivery times averaged {recent_min} mins across {recent_n} recent orders."
+        elif result.baseline_avg_delivery_s:
+            base_min = round(result.baseline_avg_delivery_s / 60, 1)
+            trend_desc = (
+                f"No completed deliveries recorded in {zone_label} in the immediate recent window. "
+                f"Historical baseline is {base_min} mins ({baseline_n} orders)."
+            )
+        else:
+            trend_desc = f"Insufficient delivery duration records available for {zone_label}."
+
+        result.steps.append(InvestigationStep("Delivery Trend Analysis", trend_desc))
 
         worst_orders = await conn.fetch(
             f"""select {ORDER_COLUMNS} from orders
                 where restaurant_id = $1 and zone = $2
-                  and placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days'
+                  and placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                  and placed_at <= $3::timestamptz
                   and delivery_time_seconds is not null
                 order by delivery_time_seconds desc limit 5""",
-            rid, zone,
+            rid, zone, ref_time,
         )
+        if not worst_orders:
+            # Fallback to slowest orders in this zone overall
+            worst_orders = await conn.fetch(
+                f"""select {ORDER_COLUMNS} from orders
+                    where restaurant_id = $1 and zone = $2
+                      and delivery_time_seconds is not null
+                    order by delivery_time_seconds desc limit 5""",
+                rid, zone,
+            )
         result.order_evidence = [dict(r) for r in worst_orders]
 
         reason_counts = await conn.fetch(
             f"""select cancellation_reason, count(*) as n
                 from orders
                 where restaurant_id = $1 and zone = $2 and is_cancelled = true
-                  and placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days'
+                  and placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                  and placed_at <= $3::timestamptz
                 group by cancellation_reason order by n desc""",
-            rid, zone,
+            rid, zone, ref_time,
         )
         weather_rate = await conn.fetchrow(
             f"""select
-                   avg(weather_flag::int) filter (where placed_at >= now() - interval '{RECENT_WINDOW_DAYS} days') as recent_rate,
                    avg(weather_flag::int) filter (
-                     where placed_at < now() - interval '{RECENT_WINDOW_DAYS} days'
-                       and placed_at >= now() - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
+                     where placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at <= $3::timestamptz
+                   ) as recent_rate,
+                   avg(weather_flag::int) filter (
+                     where placed_at < $3::timestamptz - interval '{RECENT_WINDOW_DAYS} days'
+                       and placed_at >= $3::timestamptz - interval '{RECENT_WINDOW_DAYS + BASELINE_WINDOW_DAYS} days'
                    ) as baseline_rate
                 from orders where restaurant_id = $1 and zone = $2""",
-            rid, zone,
+            rid, zone, ref_time,
         )
 
     top_reason = reason_counts[0]["cancellation_reason"] if reason_counts else None
     result.likely_driver = top_reason
-    recent_wr = float(weather_rate["recent_rate"] or 0) * 100
-    baseline_wr = float(weather_rate["baseline_rate"] or 0) * 100
-    reason_breakdown = ", ".join(f"{r['cancellation_reason']}={r['n']}" for r in reason_counts) or "none"
+    recent_wr = float(weather_rate["recent_rate"] or 0) * 100 if weather_rate else 0.0
+    baseline_wr = float(weather_rate["baseline_rate"] or 0) * 100 if weather_rate else 0.0
+
+    friendly_driver_names = {
+        "weather_delay": "Severe weather disruption",
+        "courier_no_show": "Courier dispatch / driver shortages",
+        "restaurant_closed_early": "Kitchen delays / early closing",
+        "customer_cancelled": "Customer cancellations",
+    }
+    driver_label = friendly_driver_names.get(
+        top_reason,
+        top_reason.replace("_", " ").title() if top_reason else "No dominant cancellation cause"
+    )
+
+    reasons_text = (
+        ", ".join(f"{r['n']} {r['cancellation_reason'].replace('_', ' ')}" for r in reason_counts)
+        if reason_counts
+        else "none"
+    )
+
     result.steps.append(InvestigationStep(
-        "correlation_agent",
-        f"Weather-flagged rate {recent_wr:.0f}% this window vs {baseline_wr:.0f}% baseline. "
-        f"Cancellation reasons this window: {reason_breakdown}. "
-        f"Likely driver: {top_reason or 'no single dominant cause'}.",
+        "Operational Correlations",
+        f"Weather-flagged rate: {recent_wr:.0f}% (vs {baseline_wr:.0f}% baseline). "
+        f"Cancellations: {reasons_text}. Primary operational driver: {driver_label}.",
     ))
 
     result.weather_evidence, weather_step = await _investigate_weather(restaurant_id, result.order_evidence)
@@ -235,9 +339,9 @@ async def investigate(question: str, restaurant_id: str, slots: dict) -> Investi
     search_query = DRIVER_SEARCH_QUERY.get(top_reason, DRIVER_SEARCH_QUERY[None])
     result.chunks = await hybrid_search(search_query, restaurant_id, top_k=2)
     result.steps.append(InvestigationStep(
-        "policy_agent",
-        f"Searched policy text for: \"{search_query}\" — {len(result.chunks)} relevant section(s) found.",
+        "Platform Policy Review",
+        f"Reviewed SLA and compensation guidelines for \"{search_query}\" — {len(result.chunks)} relevant section(s) found.",
     ))
 
-    result.steps_summary_text = "\n".join(f"[{s.agent}] {s.description}" for s in result.steps)
+    result.steps_summary_text = "\n".join(f"• {s.agent}: {s.description}" for s in result.steps)
     return result

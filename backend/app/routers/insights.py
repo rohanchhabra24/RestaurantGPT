@@ -183,6 +183,35 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
                where restaurant_id = $1 and placed_at >= date_trunc('day', now())""",
             rid,
         )
+
+        # Falling back to the dataset's latest active day instead of the
+        # real calendar "today" is demo furniture — it exists so the one
+        # designated demo restaurant's Dashboard never looks dead just
+        # because its seed data has a fixed past date, same reasoning as
+        # live_feed_sync.py's _is_demo_restaurant guard. Applied to every
+        # restaurant, it would silently show a real, quiet-today operator
+        # yesterday's (or older) numbers mislabeled as "today" — this KPI
+        # endpoint has no field announcing that happened.
+        latest_day = None
+        if (not today or today["orders_today"] == 0) and restaurant_id == settings.demo_restaurant_id:
+            latest_day = await conn.fetchval(
+                "select date_trunc('day', max(placed_at)) from orders where restaurant_id = $1",
+                rid,
+            )
+            if latest_day:
+                today = await conn.fetchrow(
+                    """select count(*) as orders_today,
+                              count(*) filter (
+                                where delivery_time_seconds is not null and sla_target_seconds is not null
+                                  and delivery_time_seconds > sla_target_seconds
+                              ) as sla_breaches_today,
+                              avg(prep_time_seconds) filter (where prep_time_seconds is not null) as avg_prep_time_seconds,
+                              coalesce(sum(total_amount) filter (where is_cancelled), 0) as lost_revenue_today
+                       from orders
+                       where restaurant_id = $1 and placed_at >= $2 and placed_at < $2 + interval '1 day'""",
+                    rid, latest_day,
+                )
+
         trend = await conn.fetchrow(
             f"""select count(*) as total,
                        count(*) filter (where is_cancelled) as cancelled,
@@ -193,6 +222,20 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
                 where restaurant_id = $1 and placed_at >= now() - interval '{OPERATIONS_TREND_DAYS} days'""",
             rid,
         )
+        # If trend is empty because latest data is older than OPERATIONS_TREND_DAYS, anchor to latest_day
+        if (not trend or not trend["total"]) and latest_day:
+            trend = await conn.fetchrow(
+                f"""select count(*) as total,
+                           count(*) filter (where is_cancelled) as cancelled,
+                           avg(delivery_time_seconds - sla_target_seconds) filter (
+                             where delivery_time_seconds is not null and sla_target_seconds is not null
+                           ) as avg_delay_seconds
+                    from orders
+                    where restaurant_id = $1 and placed_at >= $2 - interval '{OPERATIONS_TREND_DAYS} days'
+                      and placed_at <= $2 + interval '1 day'""",
+                rid, latest_day,
+            )
+
         # Sum of every drafted/submitted/resolved claim — "identified", not
         # "recovered": nothing in this build confirms a claim was actually
         # paid out, so the KPI is worded to match what's actually verified.
@@ -200,24 +243,33 @@ async def operations(restaurant_id: str = Depends(require_tenant)):
             "select coalesce(sum(computed_amount), 0) from compensation_claims where restaurant_id = $1",
             rid,
         )
-        # Root-cause callout for the SLA breach tile (the audit's "surface
-        # the why alongside the what" finding) — which zone today's
-        # breaches are concentrated in, not just how many happened. Only
-        # worth naming once a zone actually has more than one breach;
-        # a single stray breach isn't a "pattern" a manager needs pointed
-        # out, it's just the one order they'd already be looking at.
-        top_zone = await conn.fetchrow(
-            """select zone, count(*) as breach_count
-               from orders
-               where restaurant_id = $1 and placed_at >= date_trunc('day', now())
-                 and zone is not null
-                 and delivery_time_seconds is not null and sla_target_seconds is not null
-                 and delivery_time_seconds > sla_target_seconds
-               group by zone
-               order by breach_count desc
-               limit 1""",
-            rid,
-        )
+        # Root-cause callout for the SLA breach tile
+        if latest_day:
+            top_zone = await conn.fetchrow(
+                """select zone, count(*) as breach_count
+                   from orders
+                   where restaurant_id = $1 and placed_at >= $2 and placed_at < $2 + interval '1 day'
+                     and zone is not null
+                     and delivery_time_seconds is not null and sla_target_seconds is not null
+                     and delivery_time_seconds > sla_target_seconds
+                   group by zone
+                   order by breach_count desc
+                   limit 1""",
+                rid, latest_day,
+            )
+        else:
+            top_zone = await conn.fetchrow(
+                """select zone, count(*) as breach_count
+                   from orders
+                   where restaurant_id = $1 and placed_at >= date_trunc('day', now())
+                     and zone is not null
+                     and delivery_time_seconds is not null and sla_target_seconds is not null
+                     and delivery_time_seconds > sla_target_seconds
+                   group by zone
+                   order by breach_count desc
+                   limit 1""",
+                rid,
+            )
 
     trend_total = trend["total"] or 0
     return {

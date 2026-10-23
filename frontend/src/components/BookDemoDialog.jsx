@@ -34,6 +34,28 @@ function formatSlot(slot) {
   return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
+function isSlotInPast(day, slot, bufferMinutes = 15) {
+  if (!day) return false;
+  const now = new Date();
+  const isToday =
+    day.getFullYear() === now.getFullYear() &&
+    day.getMonth() === now.getMonth() &&
+    day.getDate() === now.getDate();
+
+  if (!isToday) {
+    const dayStart = new Date(day);
+    dayStart.setHours(23, 59, 59, 999);
+    return dayStart < now;
+  }
+
+  const [h, m] = slot.split(":").map(Number);
+  const slotTime = new Date(day);
+  slotTime.setHours(h, m, 0, 0);
+
+  // Require slot to be at least bufferMinutes in the future
+  return slotTime.getTime() <= now.getTime() + bufferMinutes * 60 * 1000;
+}
+
 // Next 14 calendar days including today — a plain date-request picker, not
 // a live-availability calendar (there's no backend booking system behind
 // this yet), so every day/slot is always selectable and the copy says
@@ -214,6 +236,13 @@ function CallBookingForm() {
     );
   }
 
+  function handleSelectDay(d) {
+    setSelectedDay(d);
+    if (selectedSlot && isSlotInPast(d, selectedSlot)) {
+      setSelectedSlot(null);
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div>
@@ -226,7 +255,7 @@ function CallBookingForm() {
               <button
                 key={d.toISOString()}
                 type="button"
-                onClick={() => setSelectedDay(d)}
+                onClick={() => handleSelectDay(d)}
                 className={
                   "flex h-16 w-14 flex-none flex-col items-center justify-center gap-0.5 rounded-md border text-xs transition-colors " +
                   (active
@@ -245,24 +274,45 @@ function CallBookingForm() {
 
       {selectedDay && (
         <div>
-          <Label className="mb-2 block">Pick a time (10 AM – 6 PM)</Label>
-          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
-            {TIME_SLOTS.map((slot) => (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => setSelectedSlot(slot)}
-                className={
-                  "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors " +
-                  (selectedSlot === slot
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-surface-raised text-foreground hover:border-[var(--color-neutral-500)]")
-                }
-              >
-                {formatSlot(slot)}
-              </button>
-            ))}
+          <div className="mb-2 flex items-center justify-between">
+            <Label className="block">Pick a time (10 AM – 6 PM)</Label>
+            {TIME_SLOTS.some((s) => isSlotInPast(selectedDay, s)) && (
+              <span className="text-[11px] text-[var(--color-neutral-400)]">
+                Past hours unavailable
+              </span>
+            )}
           </div>
+          {TIME_SLOTS.every((s) => isSlotInPast(selectedDay, s)) ? (
+            <div className="rounded-md border border-border bg-surface-raised p-3 text-xs text-[var(--color-text-dim)]">
+              All time slots for today have already passed. Please select tomorrow or an upcoming date above.
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+              {TIME_SLOTS.map((slot) => {
+                const past = isSlotInPast(selectedDay, slot);
+                const active = selectedSlot === slot;
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    disabled={past}
+                    onClick={() => !past && setSelectedSlot(slot)}
+                    title={past ? "This time slot has already passed" : undefined}
+                    className={
+                      "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors " +
+                      (past
+                        ? "border-[var(--color-divider)] bg-surface text-[var(--color-text-dim)] opacity-35 cursor-not-allowed line-through"
+                        : active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-surface-raised text-foreground hover:border-[var(--color-neutral-500)] cursor-pointer")
+                    }
+                  >
+                    {formatSlot(slot)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

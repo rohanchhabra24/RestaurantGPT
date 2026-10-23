@@ -76,13 +76,28 @@ def _decode(authorization: str | None) -> dict:
         raise HTTPException(401, "Invalid or expired token")
 
 
+import uuid
+from app.db import get_pool
+
 async def get_current_user(authorization: str | None = Header(None)) -> AuthContext:
-    """Verifies the token and returns the caller's identity, without
-    requiring a restaurant yet — use this for the onboarding endpoints,
-    which a freshly signed-up user must be able to call before they have
-    a restaurant_id claim."""
+    """Verifies the token and returns the caller's identity. If the token
+    lacks a restaurant_id claim (e.g. Supabase Auth Hook has not been enabled
+    in the dashboard), falls back to checking restaurant_members in Postgres."""
     claims = _decode(authorization)
-    return AuthContext(user_id=claims["sub"], restaurant_id=claims.get("restaurant_id"))
+    restaurant_id = claims.get("restaurant_id")
+    if not restaurant_id:
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT restaurant_id FROM restaurant_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+                    uuid.UUID(claims["sub"]),
+                )
+                if row:
+                    restaurant_id = str(row["restaurant_id"])
+        except Exception as e:
+            logger.warning("DB fallback restaurant lookup failed: %s", e)
+    return AuthContext(user_id=claims["sub"], restaurant_id=restaurant_id)
 
 
 async def require_tenant(authorization: str | None = Header(None)) -> str:

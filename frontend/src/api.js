@@ -84,13 +84,25 @@ async function request(path, options = {}) {
       }
 
       let userMessage = "Something went wrong on our end. Please try again.";
-      if (res.status < 500) {
+      const isProxyError = typeof text === "string" && (text.includes("proxy error") || text.includes("ECONNREFUSED") || text.includes("Internal Server Error") && text.includes("vite"));
+      if (res.status === 502 || res.status === 504 || (res.status === 500 && isProxyError)) {
+        userMessage = "Backend service is unreachable. Please ensure the backend server is running on port 8000.";
+      } else {
         try {
           const parsed = JSON.parse(text);
-          if (typeof parsed.detail === "string") userMessage = parsed.detail;
-          else userMessage = "Please check your inputs and try again.";
-        } catch (e) {
-          userMessage = "Please check your inputs and try again.";
+          if (typeof parsed.detail === "string") {
+            userMessage = parsed.detail;
+          } else if (Array.isArray(parsed.detail) && parsed.detail[0]?.msg) {
+            userMessage = parsed.detail[0].msg;
+          } else if (res.status < 500) {
+            userMessage = "Please check your inputs and try again.";
+          }
+        } catch {
+          if (text && typeof text === "string" && text.length > 0 && text.length < 200 && !text.startsWith("<")) {
+            userMessage = text;
+          } else if (res.status < 500) {
+            userMessage = "Please check your inputs and try again.";
+          }
         }
       }
       throw new Error(userMessage);
@@ -107,8 +119,16 @@ async function request(path, options = {}) {
 
 export const onboardingApi = {
   me: () => request("/onboarding/me"),
-  createRestaurant: (name) =>
-    request("/onboarding/restaurant", { method: "POST", body: JSON.stringify({ name }) }),
+  // aggregatorPlatform matches a field the backend has always accepted
+  // (CreateRestaurantIn.aggregator_platform, default "multi") but the
+  // frontend never sent — onboarding silently left every restaurant on
+  // the default instead of letting the operator say which platform(s)
+  // they actually use.
+  createRestaurant: (name, aggregatorPlatform) =>
+    request("/onboarding/restaurant", {
+      method: "POST",
+      body: JSON.stringify(aggregatorPlatform ? { name, aggregator_platform: aggregatorPlatform } : { name }),
+    }),
 };
 
 export const settingsApi = {
