@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "../components/ui/button.jsx";
 import { Card } from "../components/ui/card.jsx";
 import { Badge } from "../components/ui/badge.jsx";
 import Icon from "../components/Icon.jsx";
 import BookDemoDialog from "../components/BookDemoDialog.jsx";
 import ForensicCardStack from "../components/ForensicCardStack.jsx";
+import { getTheme, setTheme } from "../theme.js";
 
 // Trial: this page is rebuilt on Tailwind + shadcn-style components
 // (src/components/ui/) instead of the hand-rolled theme.css classes the
@@ -85,20 +87,16 @@ export default function LandingPage() {
   const [demoDialog, setDemoDialog] = useState(null); // null | "message" | "call"
   const [activeExample, setActiveExample] = useState(0);
   const [userPicked, setUserPicked] = useState(false);
-  // Cursor-tracked ambient glow behind the hero — purely decorative, same
-  // "marketing content, not real data" register as the demo card itself.
-  const [spot, setSpot] = useState({ x: 50, y: 30 });
+  const [theme, setThemeState] = useState(getTheme);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    setThemeState(next);
+  }
 
   function getStarted() {
     navigate("/login?mode=signup");
-  }
-
-  function handleHeroMove(e) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setSpot({
-      x: ((e.clientX - rect.left) / rect.width) * 100,
-      y: ((e.clientY - rect.top) / rect.height) * 100,
-    });
   }
 
   // Auto-rotates through the canned examples so a visitor who never
@@ -137,6 +135,18 @@ export default function LandingPage() {
           <span className="mr-auto flex items-center gap-2 font-heading text-lg font-medium">
             <img src="/logo.png" alt="RestaurantGPT" className="h-6 w-auto flex-none object-contain" />
           </span>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            className="flex h-9 w-9 items-center justify-center rounded-pill border border-[var(--color-divider)] text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:border-[var(--color-neutral-400)] transition-colors cursor-pointer"
+            style={{
+              background: "color-mix(in srgb, var(--color-surface) 60%, transparent)",
+            }}
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
           <Button onClick={getStarted}>Get started</Button>
         </nav>
       </div>
@@ -152,14 +162,13 @@ export default function LandingPage() {
 
       <div className="mx-auto max-w-[1200px] px-5 pb-14 sm:px-10 lg:px-[72px]">
         <section
-          onMouseMove={handleHeroMove}
           className="relative grid items-center gap-12 py-12 sm:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr))]"
         >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -inset-20"
             style={{
-              background: `radial-gradient(640px circle at ${spot.x}% ${spot.y}%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 62%)`,
+              background: "radial-gradient(640px circle at 50% 30%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 65%)",
             }}
           />
           <div className="relative flex max-w-[560px] flex-col">

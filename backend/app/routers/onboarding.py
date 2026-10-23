@@ -45,10 +45,24 @@ async def create_restaurant(
     request: Request, body: CreateRestaurantIn, ctx: AuthContext = Depends(get_current_user)
 ):
     if ctx.restaurant_id:
-        raise HTTPException(400, "This account is already linked to a restaurant.")
+        return {
+            "restaurant_id": ctx.restaurant_id,
+            "note": "Account is already linked to an existing restaurant.",
+        }
 
     pool = await get_pool()
+    user_uuid = uuid.UUID(ctx.user_id)
     async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT restaurant_id FROM restaurant_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+            user_uuid,
+        )
+        if existing:
+            return {
+                "restaurant_id": str(existing["restaurant_id"]),
+                "note": "Account is already linked to an existing restaurant.",
+            }
+
         async with conn.transaction():
             row = await conn.fetchrow(
                 """insert into restaurants (name, aggregator_platform, timezone)
@@ -57,10 +71,10 @@ async def create_restaurant(
             )
             await conn.execute(
                 "insert into restaurant_members (restaurant_id, user_id, role) values ($1, $2, 'owner')",
-                row["id"], uuid.UUID(ctx.user_id),
+                row["id"], user_uuid,
             )
 
     return {
         "restaurant_id": str(row["id"]),
-        "note": "Sign out and back in (or refresh your session) to get a token carrying the new restaurant_id claim.",
+        "note": "Restaurant created successfully.",
     }

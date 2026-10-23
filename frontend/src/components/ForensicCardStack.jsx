@@ -63,14 +63,6 @@ export default function ForensicCardStack({ examples = [], activeIndex = 0, onSe
                   }
                 : {}
             }
-            drag={isFront ? "x" : false}
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.4}
-            onDragEnd={(_, info) => {
-              if (Math.abs(info.offset.x) > 60) {
-                onSelect((activeIndex + 1) % examples.length);
-              }
-            }}
             style={{
               position: isFront ? "relative" : "absolute",
               top: 0,
@@ -82,8 +74,7 @@ export default function ForensicCardStack({ examples = [], activeIndex = 0, onSe
               boxShadow: isFront
                 ? "0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)"
                 : "0 10px 25px -10px rgba(0, 0, 0, 0.5)",
-              cursor: isFront ? "grab" : "pointer",
-              touchAction: "pan-y",
+              cursor: isFront ? "default" : "pointer",
             }}
           >
             {/* Top Bar with Live Indicator */}
@@ -121,7 +112,7 @@ export default function ForensicCardStack({ examples = [], activeIndex = 0, onSe
                   border: "1px solid var(--color-divider)",
                 }}
               >
-                {isFront ? "Active Audit · Drag to swipe" : "Tap to inspect"}
+                {isFront ? "Active Audit" : "Click to view"}
               </span>
             </div>
 
