@@ -1,182 +1,162 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Icon from "./Icon.jsx";
 
 const LUM_CARD_STYLE = { border: "var(--lum-border)", background: "var(--lum-bg)" };
 
 export default function ForensicCardStack({ examples = [], activeIndex = 0, onSelect }) {
-  // Rotate through 3 card depth slots: front (active), middle, back
+  const [direction, setDirection] = useState(0);
+
+  function prevSlide() {
+    setDirection(-1);
+    onSelect((activeIndex - 1 + examples.length) % examples.length);
+  }
+
+  function nextSlide() {
+    setDirection(1);
+    onSelect((activeIndex + 1) % examples.length);
+  }
+
+  const current = examples[activeIndex] || examples[0] || {};
+
+  const slideVariants = {
+    enter: (dir) => ({
+      x: dir >= 0 ? 40 : -40,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir) => ({
+      x: dir >= 0 ? -40 : 40,
+      opacity: 0,
+    }),
+  };
+
   return (
-    <div
-      className="forensic-card-stack-root"
-      style={{
-        position: "relative",
-        width: "100%",
-        minHeight: 280,
-        perspective: 1000,
-      }}
-    >
+    <div className="relative w-full">
       {/* Ambient Glow */}
       <div
-        className="pointer-events-none absolute -inset-6 rounded-3xl opacity-50 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
+        className="pointer-events-none absolute -inset-6 rounded-3xl opacity-40 blur-[28px]"
         style={{
-          background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 32%, transparent), transparent 70%)",
+          background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 28%, transparent), transparent 70%)",
         }}
       />
 
-      {examples.map((item, index) => {
-        // Calculate relative offset from active index
-        const offset = (index - activeIndex + examples.length) % examples.length;
-        const isFront = offset === 0;
-        const isMiddle = offset === 1;
-        const isBack = offset === 2;
+      {/* Main Slide Card */}
+      <div
+        className="relative overflow-hidden rounded-[var(--radius-lg)] p-5 sm:p-6"
+        style={{
+          ...LUM_CARD_STYLE,
+          minHeight: 280,
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+        }}
+      >
+        {/* Top Control Bar: Title + Indicators + Arrow Controls */}
+        <div
+          className="flex items-center justify-between gap-3 mb-4 pb-3"
+          style={{ borderBottom: "1px solid var(--color-divider)" }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text)]">
+              Forensic Scenario {String(activeIndex + 1).padStart(2, "0")}
+            </span>
+            <span className="text-[11px] text-[var(--color-text-dim)]">/ {String(examples.length).padStart(2, "0")}</span>
+          </div>
 
-        // Visual depth properties per slot
-        const yOffset = isFront ? 0 : isMiddle ? 16 : 30;
-        const scale = isFront ? 1 : isMiddle ? 0.95 : 0.90;
-        const rotateZ = isFront ? 0 : isMiddle ? -2.5 : 2.5;
-        const opacity = isFront ? 1 : isMiddle ? 0.65 : 0.35;
-        const zIndex = isFront ? 30 : isMiddle ? 20 : 10;
-
-        return (
-          <motion.div
-            key={item.question}
-            onClick={() => onSelect(index)}
-            animate={{
-              y: yOffset,
-              scale: scale,
-              rotateZ: rotateZ,
-              opacity: opacity,
-              zIndex: zIndex,
-            }}
-            transition={{
-              type: "spring",
-              stiffness: 350,
-              damping: 26,
-            }}
-            whileHover={
-              !isFront
-                ? {
-                    scale: scale + 0.02,
-                    opacity: opacity + 0.2,
-                    cursor: "pointer",
-                  }
-                : {}
-            }
-            style={{
-              position: isFront ? "relative" : "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              borderRadius: "var(--radius-lg)",
-              padding: "18px 20px 20px",
-              ...LUM_CARD_STYLE,
-              boxShadow: isFront
-                ? "0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)"
-                : "0 10px 25px -10px rgba(0, 0, 0, 0.5)",
-              cursor: isFront ? "default" : "pointer",
-            }}
-          >
-            {/* Top Bar with Live Indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "#10b981",
-                    boxShadow: "0 0 8px rgba(16, 185, 129, 0.8)",
+          {/* Controls: Prev, Next & Scenario Indicator Pills */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mr-2">
+              {examples.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setDirection(i > activeIndex ? 1 : -1);
+                    onSelect(i);
                   }}
+                  className="h-1.5 rounded-full transition-all cursor-pointer"
+                  style={{
+                    width: i === activeIndex ? 18 : 6,
+                    background: i === activeIndex ? "var(--color-accent)" : "var(--color-divider)",
+                  }}
+                  aria-label={`Go to scenario ${i + 1}`}
                 />
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--color-text)",
-                  }}
-                >
-                  Forensic Scenario 0{index + 1}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  padding: "2px 7px",
-                  borderRadius: "var(--radius-pill)",
-                  background: isFront ? "rgba(145, 132, 217, 0.16)" : "transparent",
-                  color: "var(--color-accent-200)",
-                  border: "1px solid var(--color-divider)",
-                }}
-              >
-                {isFront ? "Active Audit" : "Click to view"}
-              </span>
+              ))}
             </div>
 
-            {/* Operator Question */}
-            <div
-              style={{
-                borderRadius: "10px 10px 2px 10px",
-                background: "var(--color-surface-raised)",
-                border: "1px solid var(--color-divider)",
-                padding: "10px 14px",
-                fontSize: 13.5,
-                fontWeight: 500,
-                color: "var(--color-text)",
-                marginBottom: 10,
-                alignSelf: "flex-end",
-              }}
+            <button
+              type="button"
+              onClick={prevSlide}
+              aria-label="Previous scenario"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-divider)] text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:border-[var(--color-neutral-400)] transition-colors cursor-pointer"
+              style={{ background: "color-mix(in srgb, var(--color-surface) 60%, transparent)" }}
             >
-              {item.question}
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={nextSlide}
+              aria-label="Next scenario"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-divider)] text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:border-[var(--color-neutral-400)] transition-colors cursor-pointer"
+              style={{ background: "color-mix(in srgb, var(--color-surface) 60%, transparent)" }}
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Sliding Card Content */}
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={activeIndex}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -40) {
+                nextSlide();
+              } else if (info.offset.x > 40) {
+                prevSlide();
+              }
+            }}
+            className="flex flex-col gap-3"
+          >
+            {/* Operator Prompt */}
+            <div
+              className="rounded-lg p-3 text-sm font-medium border border-[var(--color-divider)] text-[var(--color-text)] self-end max-w-[90%]"
+              style={{ background: "var(--color-surface-raised)" }}
+            >
+              {current.question}
             </div>
 
             {/* Verified Answer Bubble */}
             <div
-              style={{
-                borderRadius: "10px 10px 10px 2px",
-                background: "color-mix(in srgb, var(--color-surface) 90%, black)",
-                border: "1px solid var(--color-divider)",
-                padding: "12px 14px",
-                fontSize: 13,
-                lineHeight: 1.5,
-                color: "var(--color-text)",
-              }}
+              className="rounded-lg p-3.5 border border-[var(--color-divider)] text-[var(--color-text)]"
+              style={{ background: "color-mix(in srgb, var(--color-surface) 90%, black)" }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "#10b981",
-                  marginBottom: 6,
-                }}
-              >
-                <Icon name="check" size={11} />
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-1.5">
+                <Icon name="check" size={12} />
                 Verified from Telemetry
               </div>
-              <p style={{ margin: 0, color: "var(--color-text-dim)", fontSize: 13 }}>{item.answer}</p>
+              <p className="m-0 text-sm leading-relaxed text-[var(--color-text-dim)]">{current.answer}</p>
 
               {/* Citations */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                {item.citations.map((c) => (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {current.citations?.map((c) => (
                   <span
                     key={c}
-                    className="mono"
-                    style={{
-                      fontSize: 11,
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      background: "var(--color-surface-raised)",
-                      border: "1px solid var(--color-divider)",
-                      color: "var(--color-text)",
-                    }}
+                    className="font-mono text-xs px-2 py-0.5 rounded border border-[var(--color-divider)] text-[var(--color-text)]"
+                    style={{ background: "var(--color-surface-raised)" }}
                   >
                     {c}
                   </span>
@@ -184,8 +164,8 @@ export default function ForensicCardStack({ examples = [], activeIndex = 0, onSe
               </div>
             </div>
           </motion.div>
-        );
-      })}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
