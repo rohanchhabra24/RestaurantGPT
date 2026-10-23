@@ -6,6 +6,7 @@ import { Card } from "../components/ui/card.jsx";
 import { Badge } from "../components/ui/badge.jsx";
 import Icon from "../components/Icon.jsx";
 import BookDemoDialog from "../components/BookDemoDialog.jsx";
+import ForensicCardStack from "../components/ForensicCardStack.jsx";
 
 // Trial: this page is rebuilt on Tailwind + shadcn-style components
 // (src/components/ui/) instead of the hand-rolled theme.css classes the
@@ -206,45 +207,14 @@ export default function LandingPage() {
           </div>
 
           <div className="relative w-full min-w-0 sm:min-w-[340px]">
-            <div
-              className="pointer-events-none absolute -inset-9 rounded-3xl opacity-55 blur-[28px] [animation:rgpt-glow_6s_ease-in-out_infinite]"
-              style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 70%)" }}
+            <ForensicCardStack
+              examples={DEMO_EXAMPLES}
+              activeIndex={activeExample}
+              onSelect={(i) => {
+                setActiveExample(i);
+                setUserPicked(true);
+              }}
             />
-            <Card className="relative flex flex-col gap-3.5 p-5 pb-6 overflow-hidden" style={LUM_CARD_STYLE}>
-              <div className="flex items-center gap-2">
-                <img src="/logo.png" alt="RestaurantGPT" className="h-[15px] w-auto flex-none object-contain" />
-                <Badge className="ml-auto">
-                  <Icon name="check" size={10} className="[animation:rgpt-pulse_2.4s_ease-in-out_infinite]" />
-                  Live
-                </Badge>
-              </div>
-              <div className="h-px bg-border" />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeExample}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
-                  className="flex flex-col gap-3.5"
-                >
-                  <div className="self-end max-w-[96%] rounded-[12px_12px_2px_12px] bg-[var(--color-neutral-800)] px-3.5 py-2.5 text-sm">
-                    {demo.question}
-                  </div>
-                  <Card className="self-start max-w-[96%] p-4 shadow-md" style={LUM_CARD_STYLE}>
-                    <div className="flex items-center gap-1.5 text-xs uppercase tracking-[.06em] text-muted-foreground">
-                      <Icon name="check" size={11} />Verified
-                    </div>
-                    <p className="m-0 mt-1.5 text-[12.5px] text-muted-foreground">{demo.answer}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {demo.citations.map((c) => (
-                        <Badge key={c} variant="outline" className="font-mono">{c}</Badge>
-                      ))}
-                    </div>
-                  </Card>
-                </motion.div>
-              </AnimatePresence>
-            </Card>
           </div>
         </section>
 

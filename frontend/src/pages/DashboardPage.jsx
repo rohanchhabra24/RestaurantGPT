@@ -162,12 +162,33 @@ function LiveOpsStatusStrip({ kpis, ordersCount, onRefresh, refreshing }) {
   const onTimePct = totalOrders > 0 ? Math.max(0, Math.round(((totalOrders - breaches) / totalOrders) * 100)) : 100;
 
   return (
-    <div className="live-ops-strip">
+    <div className="live-ops-strip" style={{ position: "relative", overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-          <span className="status-dot status-dot-green status-dot-pulse" />
-          <span style={{ font: "600 13px var(--font-body)", color: "var(--color-text, #f8fafc)" }}>
-            Live Ops Active
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span style={{ position: "relative", width: 10, height: 10, display: "inline-flex" }}>
+            <span
+              style={{
+                position: "absolute",
+                inset: -2,
+                borderRadius: "50%",
+                background: "#10b981",
+                opacity: 0.6,
+                animation: "rgpt-pulse 1.8s ease-in-out infinite",
+              }}
+            />
+            <span
+              style={{
+                position: "relative",
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: "#10b981",
+                boxShadow: "0 0 8px rgba(16, 185, 129, 0.7)",
+              }}
+            />
+          </span>
+          <span style={{ font: "600 13px var(--font-body)", color: "var(--color-text, #f8fafc)", letterSpacing: "-0.01em" }}>
+            Live Telemetry
           </span>
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -195,6 +216,25 @@ function LiveOpsStatusStrip({ kpis, ordersCount, onRefresh, refreshing }) {
 
         <span className="mono" style={{ color: "var(--color-text)" }}>
           <strong>{totalOrders}</strong> orders today
+        </span>
+
+        <span className="dim">·</span>
+
+        <span
+          style={{
+            fontSize: 11,
+            padding: "2px 8px",
+            borderRadius: "var(--radius-pill)",
+            background: "rgba(145, 132, 217, 0.12)",
+            border: "1px solid rgba(145, 132, 217, 0.25)",
+            color: "var(--color-accent-200)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Icon name="cloud-rain" size={11} />
+          Rain SLA Active
         </span>
 
         {onRefresh && (

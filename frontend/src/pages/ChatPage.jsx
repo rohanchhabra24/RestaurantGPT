@@ -6,6 +6,8 @@ import Icon from "../components/Icon.jsx";
 import AnswerCard from "../components/AnswerCard.jsx";
 import SourceDrawer from "../components/SourceDrawer.jsx";
 import InlineConfirm from "../components/InlineConfirm.jsx";
+import PromptComposer from "../components/PromptComposer.jsx";
+import DynamicIslandTrace from "../components/DynamicIslandTrace.jsx";
 import { api } from "../api.js";
 
 const EXAMPLE_PROMPTS = [
@@ -415,29 +417,20 @@ export default function ChatPage() {
               )
             )}
             {sending && (
-              <div className="dim" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>{t("chat.sendingIndicator")}</motion.span>
-              </div>
+              <DynamicIslandTrace mode="live" />
             )}
             <div ref={threadEndRef} />
           </div>
         )}
 
-        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "16px clamp(16px, 6vw, 40px) 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              className="input"
-              style={{ flex: 1 }}
-              placeholder={t("chat.inputPlaceholder")}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send(draft)}
-            />
-            <button type="button" className="btn btn-primary btn-icon" aria-label={t("chat.sendAria")} onClick={() => send(draft)} disabled={sending}>
-              <Icon name="send" size={15} />
-            </button>
-          </div>
-          <div className="dim" style={{ fontSize: 11 }}>{t("chat.pressEnter", { key: "⏎" })}</div>
+        <div style={{ flex: "none", borderTop: "1px solid var(--color-divider)", padding: "14px clamp(16px, 4vw, 32px) 16px", background: "color-mix(in srgb, var(--color-bg) 92%, transparent)" }}>
+          <PromptComposer
+            draft={draft}
+            setDraft={setDraft}
+            onSend={(text) => send(text)}
+            sending={sending}
+            placeholder={t("chat.inputPlaceholder")}
+          />
         </div>
       </div>
 

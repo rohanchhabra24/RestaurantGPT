@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Icon from "./Icon.jsx";
 import CitationTag from "./CitationTag.jsx";
+import DynamicIslandTrace from "./DynamicIslandTrace.jsx";
 
 const MARKER_RE = /\[(ORDER|POLICY|WEATHER):([^\]]+)\]/g;
 
@@ -230,7 +231,7 @@ export default function AnswerCard({ message, onCiteClick, onFeedback, onSuggest
       </motion.p>
 
       {message.investigation_steps?.length > 0 && (
-        <InvestigationTrace steps={message.investigation_steps} />
+        <DynamicIslandTrace mode="completed" steps={message.investigation_steps} onCiteClick={onCiteClick} />
       )}
 
       {message.data_table && message.data_table.length > 0 && (
